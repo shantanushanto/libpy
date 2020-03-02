@@ -27,7 +27,7 @@ two string cmd and output file name.
 two output. One with <b>.out</b> and another with <b>.err</b>. Usually <b>.out</b> contains program result output and
 <b>.err</b> contains debug/log output.
 
-<b>See example_batch.py to how to create the callback function to pass to the JobLauncher.</b>
+<b>See example_batch.py to know how to create callback function to pass to JobLauncher.</b>
 
 ### Batch generator
 For each of the program run I used 3 type of batch generators.
