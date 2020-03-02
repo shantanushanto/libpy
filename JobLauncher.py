@@ -1,9 +1,11 @@
 import os
 import uuid
-
-import pyutils
 import time
 import dill
+import sys
+
+import pyutils
+
 
 class Task():
     def __init__(self, cmd, out):
@@ -18,7 +20,7 @@ class Task():
             dill.dump(tasks, file)
 
     @staticmethod
-    def incomplete_tasks_from_cache(dir, file_name=None, finish_tag=pyutils.tag_job_finished_successfully):
+    def incomplete_tasks_from_cache(dir, file_name=None, finish_tag=pyutils.tag_job_finished_successfully, verbose=True):
         # given dir get recent submitted tasks which are not completed
         # dir: to look for all generated data and previously submitted tasks cache
         # file_name: if file_name is None use recent tasks cache file. To use otherwise only file_name (without full path, dir provide path) need to be passed.
@@ -44,7 +46,7 @@ class Task():
             incomplete_tasks = []
             # check finish tag from each file or existence of file
             for task in submitted_tasks:
-                err_path = os.path.join(dir, f'{task.out}.err')
+                err_path = f'{task.out}.err'
                 if os.path.isfile(err_path): # check if file exist but finish tag doesn't exist
                     with open(err_path, 'r') as f:
                         # check finish tag
@@ -59,6 +61,7 @@ class Task():
         submitted_tasks = get_tasks()
         # find incomplete task
         incomplete = get_incomplete_task(submitted_tasks)
+        if verbose: sys.stderr.write(f'Total incomplte task: {len(incomplete)}\n')
         return incomplete
 
 class JobLauncher():
