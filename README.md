@@ -1,4 +1,4 @@
-# libpy
+# How to use tamulauncher with other job submission manager
 ### Introduction
 ### Tamulauncher
 ### How to use
