@@ -20,8 +20,9 @@ class Task():
     @staticmethod
     def incomplete_tasks_from_cache(dir, file_name=None, finish_tag=pyutils.tag_job_finished_successfully):
         # given dir get recent submitted tasks which are not completed
-        # file_name: if file_name is None use recent one
-        # complete_tag in err file to check if the task is completed
+        # dir: to look for all generated data and previously submitted tasks cache
+        # file_name: if file_name is None use recent tasks cache file. To use otherwise only file_name (without full path, dir provide path) need to be passed.
+        # finish_tag: in err file to check if the task is completed
 
         def get_tasks():
             # get task from recent or given file
@@ -91,9 +92,25 @@ class JobLauncher():
         raise NotImplementedError
 
 class TamuLauncher(JobLauncher):
+    '''
+    This module uses tamulauncher with slurm batch submission.
+    '''
     def __init__(self, task_gen, acc_id = 122818929441, tasks_each_launch = 42, no_cpu_per_task = 1, ntasks_per_node = 14, time = '00:40:00', mem = '50000M', job_name = 'job', sbatch_extra_cmd = ''):
         '''
-        task_gen is a function that return list of Task
+        :summary
+        Let's assume we have in total 1000 tasks to submit. Each task needs 40 minutes time, 100M of memory and 2 cpu. Now assume we want to submit 100 task in each job. Thus, for each job submission
+        this module automatically divide the task into different job and submit them. For the above scenario, each of the job will be submitted with 100 task requesting 2*100 cpus, time 40 minutes.
+        It'll request only arg memory for each of the job. So for 100 tasks in each job give 100*100M = 10000M in the mem parameter.
+
+        :param
+        task_gen: is a function that return list of Task
+        acc_id: number of the account
+        tasks_each_launch: how many task are in each job submission
+        no_cpu_per_task: cpu allocated for each task
+        ntasks_per_node:
+        time: time to run all tasks in a job
+        mem: memory needed for a job
+        sbatch_extra_cmd: extra command to add in batch. e.g. adding PATH or set any value. New line must be provided for each command.
         '''
         super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd)
 
@@ -163,6 +180,9 @@ class TamuLauncher(JobLauncher):
 
 
 class PAlabLauncher(JobLauncher):
+    '''
+    This module uses slurm batch submission.
+    '''
     def __init__(self, task_gen, tasks_each_launch = 1, no_cpu_per_task = 1, time = '00:40:00', mem = '50000M', sbatch_extra_cmd = '', no_exclude_node = 1):
         '''
         Make sure all the directories are already exist

@@ -50,7 +50,8 @@ def run_example_program(cluster):
             tasks.append(task)
         return tasks
 
-    # sometime jobs might fail or some task doesn't produce result successfully. This generator find them and can be used to relaunch those tasks automatically
+    # sometime jobs might fail or some task doesn't produce result successfully. This generator find them and can be used to relaunch those tasks automatically.
+    # make sure to add the job finish successful tag. Please see example_program.py for reference.
     def incomplete_batch_generator():
         tasks = Task.incomplete_tasks_from_cache(data_dir)
         return tasks
