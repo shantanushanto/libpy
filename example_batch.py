@@ -85,7 +85,7 @@ def run_example_program(cluster):
     if cluster == 'palab':
         palab = PAlabLauncher(callback_batch_gen)
         palab.launch()
-    elif cluster == 'terra':
+    elif cluster == 'tamulauncher':
         # job_name is not required but can be given based on job submitted for easy tracking which jobs are running
         terra = TamuLauncher(callback_batch_gen, job_name='cmaes')
         terra.launch()
@@ -98,7 +98,7 @@ def main():
     # there may be multiple different program to choose. Only one python example is given. Can also be run C++ executable and other programs also.
     parser.add_argument("--which", choices=['run_example_program'], required=True, help="Which program to run.")
     # which cluster to use
-    parser.add_argument("--cluster", choices=['palab', 'terra'], required=True, help="Cluster name.")
+    parser.add_argument("--cluster", choices=['palab', 'tamulauncher'], required=True, help="Cluster name.")
     args = parser.parse_args()
 
     # which program to run

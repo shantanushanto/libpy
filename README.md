@@ -2,7 +2,7 @@
 ### Introduction
 ### Tamulauncher
 ### How to use
-python example_batch.py --which run_example_program --cluster terra
+python example_batch.py --which run_example_program --cluster tamulauncher
 ### Creating Task
 ### Thanks
 * Any question? email me github username @ gmail.com.
