@@ -5,8 +5,8 @@ using namespace std;
 
 
 int main(int argc, char**args) {
-    int number = atoi(args[0]);
-    int sleep_time = atoi(args[1]);
+    int number = atoi(args[1]);
+    int sleep_time = atoi(args[2]);
 
     usleep(sleep_time * 1000000); // in microseconds
 

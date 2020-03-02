@@ -2,6 +2,7 @@ import argparse
 import os
 import time
 import subprocess
+import sys
 
 from JobLauncher import Task, TamuLauncher, PAlabLauncher
 from pyutils import dir_choice
@@ -16,6 +17,7 @@ def example_program_cpp(cluster):
     exe = 'a.out'
     # compiling program
     prg = 'example_program.cpp'
+    sys.stderr.write(f'Compiling {prg} ..\n')
     msg = subprocess.check_output(f'g++ {prg}', stderr=subprocess.STDOUT, shell=True)
 
     # create readme file in the folder to easy remember
@@ -30,7 +32,7 @@ def example_program_cpp(cluster):
         # Joblauncher create .out and .err two files with out name in the data_dir for each of the run
         out = os.path.join(data_dir, job_name)
         # create program to run with arguments
-        cmd = f'python {exe} --number {number} --sleep_time {sleep_time}'
+        cmd = f'./{exe} {number} {sleep_time}'
         # creating task
         return Task(cmd, out)
 
