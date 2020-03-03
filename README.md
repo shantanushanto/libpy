@@ -13,6 +13,7 @@ job management cluster.
 * Tamulauncher: TAMU's special launcher to run lots of small program at once.
 
 ### How to use
+<b>Update <code>from libpy import pyutils</code> -> <code>import pyutils</code> in JobLauncher.py</b>
 * Run a python program: This example will run example_program.py with different arguments with slurm job submission. 
 Use <code>tamulauncher</code> in --cluster argument to use Tamulauncher<br>
 <code> python example_batch.py --which example_program_py --cluster palab </code>
