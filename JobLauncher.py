@@ -190,10 +190,11 @@ class PAlabLauncher(JobLauncher):
         '''
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
-        no_exclude_node: how many node not to use
+        no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
         '''
         super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem,  sbatch_extra_cmd)
         self.no_exclude_node = no_exclude_node 
+        self.node_name = 'node'  # change node_name here
 
     def _sbatch_header(self, job_name, out):
         header = (
@@ -208,7 +209,7 @@ class PAlabLauncher(JobLauncher):
         if self.no_exclude_node > 0:
             exclude = f'01-0{self.no_exclude_node}'
             header += (
-                    f'#SBATCH --exclude=node[{exclude}]\n'
+                    f'#SBATCH --exclude={self.node_name}[{exclude}]\n'
                     )
 
         return header 
