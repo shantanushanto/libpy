@@ -14,7 +14,7 @@ job management cluster.
 
 ### How to use
 - <b>Update <code>from libpy import pyutils</code> -> <code>import pyutils</code> in JobLauncher.py</b>
-- <b>If you use slurm and want to exclude any node, change the node name in PalabLauncher class constructor comment in JobLauncher.py file</b>
+- See some <code>TODO tag comment</code> in <code>JobLauncher.py</code> that you may need to remove. I added them for my purpose. Please see and remove them otherwise your script may not run.
 * Run a python program: This example will run example_program.py with different arguments with slurm job submission. 
 Use <code>tamulauncher</code> in --cluster argument to use Tamulauncher<br>
 <code> python example_batch.py --which example_program_py --cluster palab </code>

@@ -89,8 +89,11 @@ class JobLauncher():
 
         self.job_file_name = 'tmp.job' # file that submit task_file
 
-        self.sbatch_extra_cmd = sbatch_extra_cmd 
-    
+        self.sbatch_extra_cmd = sbatch_extra_cmd
+
+    def sbatch_script(self, header, file):
+        raise NotImplementedError
+
     def launch(self):
         raise NotImplementedError
 
@@ -122,8 +125,8 @@ class TamuLauncher(JobLauncher):
         self.ntasks_per_node = ntasks_per_node
 
         self.task_file_name = 'tasks' # file that contain all commands to run the exe
-    
-    def _sbatch_header(self):
+
+    def sbatch_header(self):
         header = (
             f'#!/bin/bash\n'
             f'#SBATCH --export=NONE\n'               
@@ -140,11 +143,10 @@ class TamuLauncher(JobLauncher):
         return header 
 
 
-    def _sbatch_script(self, file):
+    def sbatch_script(self, header, file):
         script = (
-            f'{self._sbatch_header()}\n'
-            f'source .TerraModuleLoad.sh\n'
-            f'{self.sbatch_extra_cmd}\n'
+            f'{header}\n'
+            f'source .TerraModuleLoad.sh\n' # TODO: it is not required. Keep it for my own purpose to load all module
             f'tamulauncher {file}\n'
             )
         return script 
@@ -172,7 +174,11 @@ class TamuLauncher(JobLauncher):
 
         for i in range(0, len(tasks), self.no_tasks):
             tasks_job = self._get_tasks_file(tasks[i:i+self.no_tasks])
-            script = self._sbatch_script(tasks_job)
+
+            # construct header
+            header = self.sbatch_header() + self.sbatch_extra_cmd
+            # construct script
+            script = self.sbatch_script(header=header, file=tasks_job)
             
             u_job_file_name = f'{self.job_file_name}_{uuid.uuid4()}'
             job_file = os.path.join(self.job_dir, u_job_file_name)
@@ -181,66 +187,130 @@ class TamuLauncher(JobLauncher):
             print(f'sbatch {job_file}')
             os.system(f'sbatch {job_file}')
 
-
-class PAlabLauncher(JobLauncher):
+class SlurmLauncher(JobLauncher):
     '''
     This module uses slurm batch submission.
     '''
-    def __init__(self, task_gen, tasks_each_launch = 1, no_cpu_per_task = 1, time = '00:40:00', mem = '50000M', sbatch_extra_cmd = '', no_exclude_node = 1):
+    def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=''):
         '''
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
         '''
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem,  sbatch_extra_cmd)
-        self.no_exclude_node = no_exclude_node 
-        self.node_name = 'node'  # change node_name here
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd)
 
-    def _sbatch_header(self, job_name, out):
+    def sbatch_header(self, job_name, out):
         header = (
             f'#!/bin/bash\n'
             f'#SBATCH --job-name={job_name}\n'
             f'#SBATCH --output={out}.out\n'
             f'#SBATCH --error={out}.err\n'
             f'#SBATCH --cpus-per-task={self.no_cpu_per_task}\n'
-            )
-        
-        # excluding node
-        if self.no_exclude_node > 0:
-            exclude = f'01-0{self.no_exclude_node}'
-            header += (
-                    f'#SBATCH --exclude={self.node_name}[{exclude}]\n'
-                    )
+        )
+        return header
 
-        return header 
-    
-    def _sbatch_script(self, header, cmd):
+    def sbatch_script(self, header, cmd):
+        # merge header and command together
         script = (
             f'{header}\n'
             f'{self.sbatch_extra_cmd}\n'
             f'{cmd}\n'
             )
-        return script 
+        return script
+
+    def submit_job(self, task, job_script):
+        # creating job file with unique file name
+        out_file_name = os.path.basename(task.out)
+        u_job_file_name = f'{self.job_file_name}_{out_file_name}_{uuid.uuid4()}'
+        job_file = os.path.join(self.job_dir, u_job_file_name)
+        with open(job_file, 'w') as fh:
+            fh.write(job_script)
+
+        # run the script
+        print(f'sbatch {job_file}')
+        os.system(f'sbatch {job_file}')
+
+
+class PAlabLauncher(SlurmLauncher):
+    '''
+    This module uses slurm batch submission.
+    '''
+    def __init__(self, task_gen, tasks_each_launch = 1, no_cpu_per_task = 1, time = '9999:40:00', mem = '50000M', sbatch_extra_cmd = '', no_exclude_node = 1):
+        '''
+        Make sure all the directories are already exist
+        task_gen is a function that return list of Task
+        no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
+        '''
+        # adding exclude node command
+        extra_cmd = self._exclude_header(node_name='node', no_exclude_node=no_exclude_node) + sbatch_extra_cmd
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=extra_cmd)
+
+    def _exclude_header(self, node_name, no_exclude_node):
+        # excluding node
+        exclude = f'01-0{no_exclude_node}'
+        header = (
+                f'#SBATCH --exclude={node_name}[{exclude}]\n'
+                )
+        return header
+
     
     def launch(self):
-
+        # generating all tasks
         tasks = self.task_gen()
 
         for task in tasks:
+            # getting header with job_name, out and err file name
             job_name = os.path.basename(task.out) # take the output file name as job name as output file name is unique
-            header = self._sbatch_header(job_name, task.out)
+            # exclude header is already in sbatch extra_cmd
+            header = self.sbatch_header(job_name, task.out) + self.sbatch_extra_cmd
+            # command to execute
             cmd = task.cmd
 
-            job_script = self._sbatch_script(header, cmd)
+            # make script with header and command
+            job_script = self.sbatch_script(header, cmd)
 
-            out_file_name = os.path.basename(task.out)
-            u_job_file_name = f'{self.job_file_name}_{out_file_name}_{uuid.uuid4()}'
-            job_file = os.path.join(self.job_dir, u_job_file_name)
-            with open(job_file, 'w') as fh:
-                fh.write(job_script)
+            # submitting job
+            self.submit_job(task=task, job_script=job_script)
 
-            print(f'sbatch {job_file}')
-            os.system(f'sbatch {job_file}') 
+
+class AtlasLauncher(SlurmLauncher):
+    '''
+    This module uses slurm batch submission.
+    '''
+
+    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='50000M', sbatch_extra_cmd=''):
+        '''
+        Make sure all the directories are already exist
+        task_gen is a function that return list of Task
+        no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
+        '''
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd)
+
+    def _add_partition(self, idx, header):
+        # atlas has two partitions. Distribute as all: 3, 12-core: 1
+        if idx % 4 == 0:
+            header += '--partition=12-core\n'
+        return header
+
+    def launch(self):
+        # generating all tasks
+        tasks = self.task_gen()
+
+        for idx, task in enumerate(tasks):
+            # getting header with job_name, out and err file name
+            job_name = os.path.basename(task.out)  # take the output file name as job name as output file name is unique
+            header = self.sbatch_header(job_name, task.out)
+            # add partition with header
+            header = self._add_partition(idx=idx, header=header)
+            # command to execute
+            cmd = task.cmd
+
+            # make script with header and command
+            job_script = self.sbatch_script(header=header, cmd=cmd)
+
+            # submitting job
+            self.submit_job(task=task, job_script=job_script)
+
             
 
 
