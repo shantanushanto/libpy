@@ -289,7 +289,7 @@ class AtlasLauncher(SlurmLauncher):
     def _add_partition(self, idx, header):
         # atlas has two partitions. Distribute as all: 3, 12-core: 1
         if idx % 4 == 0:
-            header += '--partition=12-core\n'
+            header += '#SBATCH --partition=12-core\n'
         return header
 
     def launch(self):
