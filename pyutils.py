@@ -3,6 +3,7 @@ import shutil
 import time
 import json
 import sys
+import dill
 
 def mkdir_p(dir, verbose = False):
     '''make a directory (dir) if it doesn't exist'''
@@ -39,6 +40,15 @@ def dir_choice(dir, verbose = True):
         mkdir_p(dir, verbose)
 
     return dir
+
+def write_pickle(path, data):
+    with open(path, 'wb') as file:
+        dill.dump(data, file)
+
+def read_pickle(path):
+    with open(path, 'rb') as file:
+        data = dill.load(file)
+    return data
 
 def files_with_extension(dir, extension):
     # given directory and extension get all files. All these files has full path
