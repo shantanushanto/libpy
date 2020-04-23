@@ -265,7 +265,7 @@ class PAlabLauncher(SlurmLauncher):
             job_name = os.path.basename(task.out) # take the output file name as job name as output file name is unique
 
             extra_cluster_specific_cmd = self._cluster_specific_header(node_name='node', no_exclude_node=self.no_exclude_node)
-            header = self.sbatch_header(job_name, task.out) + self.sbatch_extra_cmd + extra_cluster_specific_cmd
+            header = self.sbatch_header(job_name, task.out) + extra_cluster_specific_cmd
             # command to execute
             cmd = task.cmd
 
