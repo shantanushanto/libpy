@@ -242,15 +242,17 @@ class PAlabLauncher(SlurmLauncher):
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
         '''
         # adding exclude node command
-        extra_cmd = self._exclude_header(node_name='node', no_exclude_node=no_exclude_node) + sbatch_extra_cmd
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=extra_cmd)
+        self.no_exclude_node = no_exclude_node
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd)
 
-    def _exclude_header(self, node_name, no_exclude_node):
-        # excluding node
-        exclude = f'01-0{no_exclude_node}'
-        header = (
-                f'#SBATCH --exclude={node_name}[{exclude}]\n'
-                )
+    def _cluster_specific_header(self, node_name, no_exclude_node):
+        # header to exclude node
+        header = ''
+        if no_exclude_node > 0:
+            exclude = f'01-0{no_exclude_node}'
+            header = (
+                    f'#SBATCH --exclude={node_name}[{exclude}]\n'
+                    )
         return header
 
     
@@ -261,8 +263,9 @@ class PAlabLauncher(SlurmLauncher):
         for task in tasks:
             # getting header with job_name, out and err file name
             job_name = os.path.basename(task.out) # take the output file name as job name as output file name is unique
-            # exclude header is already in sbatch extra_cmd
-            header = self.sbatch_header(job_name, task.out) + self.sbatch_extra_cmd
+
+            extra_cluster_specific_cmd = self._cluster_specific_header(node_name='node', no_exclude_node=self.no_exclude_node)
+            header = self.sbatch_header(job_name, task.out) + self.sbatch_extra_cmd + extra_cluster_specific_cmd
             # command to execute
             cmd = task.cmd
 
@@ -311,7 +314,32 @@ class AtlasLauncher(SlurmLauncher):
             # submitting job
             self.submit_job(task=task, job_script=job_script)
 
-            
+class TerraGPULauncher(PAlabLauncher):
+
+    def __init__(self, task_gen, acc_id=12281892943, tasks_each_launch = 1, no_cpu_per_task = 10, no_gpu=1, time = '24:00:00', mem = '50000M', sbatch_extra_cmd = '', no_exclude_node = 0):
+        '''
+        Make sure all the directories are already exist
+        task_gen is a function that return list of Task
+        no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
+        '''
+        self.acc_id = acc_id
+        self.no_gpu = no_gpu
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, no_exclude_node=no_exclude_node)
+
+    def _cluster_specific_header(self, node_name, no_exclude_node):
+        # header to use gpu
+
+        header = (
+            f'#SBATCH --export=NONE\n'
+            f'#SBATCH --get-user-env=L\n'
+            f'#SBATCH --account={self.acc_id}\n'
+            f'#SBATCH --time={self.time}\n'
+            f'#SBATCH --ntasks={self.no_tasks}\n'
+            f'#SBATCH --mem={self.mem}\n'
+            f'#SBATCH --gres=gpu:{self.no_gpu}\n'
+            f'#SBATCH --partition=gpu\n'
+        )
+        return header
 
 
 
