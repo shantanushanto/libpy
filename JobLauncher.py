@@ -316,7 +316,7 @@ class AtlasLauncher(SlurmLauncher):
 
 class TerraGPULauncher(PAlabLauncher):
 
-    def __init__(self, task_gen, acc_id=12281892943, tasks_each_launch = 1, no_cpu_per_task = 10, no_gpu=1, time = '24:00:00', mem = '50000M', sbatch_extra_cmd = '', no_exclude_node = 0):
+    def __init__(self, task_gen, acc_id=12281892943, tasks_each_launch = 1, no_cpu_per_task = 10, no_gpu=1, time = '24:00:00', mem = '100000M', sbatch_extra_cmd = '', no_exclude_node = 0):
         '''
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
