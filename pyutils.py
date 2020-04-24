@@ -10,6 +10,7 @@ def mkdir_p(dir, verbose = False):
     if not os.path.exists(dir):
         if verbose is True: print(f'-> Created new dir named: {dir}')
         os.mkdir(dir)
+    return dir
 
 def dir_choice(dir, verbose = True):
     if os.path.exists(dir):
