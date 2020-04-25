@@ -68,9 +68,12 @@ def merge_dict(d,d1):
     return d
 
 tag_job_finished_successfully = 'JobFinishedSuccessfully'
+def print_job_finished():
+    sys.stderr.write(f'{time.ctime()}\n{tag_job_finished_successfully}\n')
+
 def print_log(log):
     # print final log dictionary with termination message
     js = json.dumps(dict(log))
     print(js)
     # tag use to identify successfully finished job
-    sys.stderr.write(f'{time.ctime()}\n{tag_job_finished_successfully}\n')
+    print_job_finished()
