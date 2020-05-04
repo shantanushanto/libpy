@@ -206,8 +206,6 @@ class SlurmLauncher(JobLauncher):
             f'#SBATCH --output={out}.out\n'
             f'#SBATCH --error={out}.err\n'
             f'#SBATCH --cpus-per-task={self.no_cpu_per_task}\n'
-            f'#SBATCH --time={self.time}\n'
-            f'#SBATCH --mem={self.mem}\n'
         )
         return header
 
