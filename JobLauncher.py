@@ -206,6 +206,8 @@ class SlurmLauncher(JobLauncher):
             f'#SBATCH --output={out}.out\n'
             f'#SBATCH --error={out}.err\n'
             f'#SBATCH --cpus-per-task={self.no_cpu_per_task}\n'
+            f'#SBATCH --time={self.time}\n'
+            f'#SBATCH --mem={self.mem}\n'
         )
         return header
 
@@ -235,7 +237,7 @@ class PAlabLauncher(SlurmLauncher):
     '''
     This module uses slurm batch submission.
     '''
-    def __init__(self, task_gen, tasks_each_launch = 1, no_cpu_per_task = 1, time = '9999:40:00', mem = '50000M', sbatch_extra_cmd = '', no_exclude_node = 1):
+    def __init__(self, task_gen, tasks_each_launch = 1, no_cpu_per_task = 1, time = '9999:40:00', mem = '2000M', sbatch_extra_cmd = '', no_exclude_node = 1):
         '''
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
@@ -281,7 +283,7 @@ class AtlasLauncher(SlurmLauncher):
     This module uses slurm batch submission.
     '''
 
-    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='50000M', sbatch_extra_cmd=''):
+    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M', sbatch_extra_cmd=''):
         '''
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
