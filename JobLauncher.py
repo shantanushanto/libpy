@@ -193,6 +193,8 @@ class SlurmLauncher(JobLauncher):
     '''
     def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=''):
         '''
+        Caution: time and mem doesn't have any effect here.
+
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
@@ -237,6 +239,8 @@ class PAlabLauncher(SlurmLauncher):
     '''
     def __init__(self, task_gen, tasks_each_launch = 1, no_cpu_per_task = 1, time = '9999:40:00', mem = '2000M', sbatch_extra_cmd = '', no_exclude_node = 1):
         '''
+        Caution: time and mem doesn't have any effect here.
+
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
@@ -283,6 +287,8 @@ class AtlasLauncher(SlurmLauncher):
 
     def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M', sbatch_extra_cmd=''):
         '''
+        Caution: time and mem doesn't have any effect here.
+
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
