@@ -77,3 +77,16 @@ def print_log(log):
     print(js)
     # tag use to identify successfully finished job
     print_job_finished()
+
+def normalize(prob):
+    tot = sum(prob)
+    p = prob[:]
+    for i in range(len(p)):
+        p[i]/=tot
+
+def errprint(str, flush=True, time_stamp=True, new_line=True):
+    # By default flush, add \n at end and time
+    if time_stamp: str = f'Time: {time.ctime()} > {str}'
+    if new_line: str = f'{str}\n'
+    sys.stderr.write(str)
+    if flush: sys.stderr.flush()
