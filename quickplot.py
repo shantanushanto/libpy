@@ -17,7 +17,7 @@ def heatmap(mat, normalize=2, title=''):
         if mx is not 0:
             X /= mx
     sns.heatmap(X, cmap="Blues")
-    plt.title(title)
+    plt.title(f'{title}, norm: {normalize}')
     plt.show()
 
 
@@ -37,7 +37,7 @@ def bar(vec, normalize=2, title=''):
     y = X
     sns.barplot(x=x, y=y, color='blue')
     plt.xticks(rotation=90)
-    plt.title(title)
+    plt.title(f'{title}, norm: {normalize}')
     plt.show()
 
 
