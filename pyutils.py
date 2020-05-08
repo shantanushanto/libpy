@@ -1,4 +1,4 @@
-import os 
+import os
 import shutil
 import time
 import json
@@ -14,10 +14,10 @@ def mkdir_p(dir, verbose = False):
 
 def dir_choice(dir, verbose = True):
     if os.path.exists(dir):
-        
+
         # number of file in the directory
         tot_file = len(os.listdir(dir))
-        
+
         # take input to execute
         inp = input(f'{dir} exist! Total file inside: {tot_file}\nNew: n, Delete: d, Empty directory: e, Continue: c, Abort a -> ')
         if inp == 'e':
@@ -81,8 +81,10 @@ def print_log(log):
 def normalize(prob):
     tot = sum(prob)
     p = prob[:]
+    if tot == 0: return p  # avoid dividing by 0
     for i in range(len(p)):
-        p[i]/=tot
+        p[i] /= tot
+    return p
 
 def errprint(str, flush=True, time_stamp=True, new_line=True):
     # By default flush, add \n at end and time
