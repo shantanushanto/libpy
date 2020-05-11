@@ -290,7 +290,7 @@ class AtlasLauncher(SlurmLauncher):
     This module uses slurm batch submission.
     '''
 
-    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M', sbatch_extra_cmd='', submission_check=False):
+    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M', sbatch_extra_cmd='', submission_check=False, atlas_ratio=4):
         '''
         Caution: time and mem doesn't have any effect here.
 
@@ -299,10 +299,11 @@ class AtlasLauncher(SlurmLauncher):
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
         '''
         super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
+        self.atlas_ratio = atlas_ratio
 
     def _add_partition(self, idx, header):
         # atlas has two partitions. Distribute as all: 3, 12-core: 1
-        if idx % 4 == 0:
+        if idx % self.atlas_ratio == 0:
             header += '#SBATCH --partition=12-core\n'
         return header
 
@@ -353,4 +354,23 @@ class TerraGPULauncher(PAlabLauncher):
         return header
 
 
+# cluster launch job
+def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, no_exlude_node=1, atlas_ratio=4, submission_check=False):
+    sbatch_extra_cmd = "source activate rl\n"
+    # choose cluster
+    if cluster == 'palab':
+        server = PAlabLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, no_exclude_node=no_exlude_node, submission_check=submission_check)
+    elif cluster == 'atlas':
+        server = AtlasLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, atlas_ratio=atlas_ratio, submission_check=submission_check)
+    elif cluster == 'tamulauncher':
+        server = TamuLauncher(callback_batch_gen, job_name=job_name, submission_check=submission_check)
+    elif cluster == 'terragpu':
+        import router  # as router may not be present in every project importing here
+        sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
+        server = TerraGPULauncher(callback_batch_gen, acc_id=122818929441, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
+    else:
+        raise ValueError('Invalid cluster name!!')
+
+    # launch jobs
+    server.launch()
 
