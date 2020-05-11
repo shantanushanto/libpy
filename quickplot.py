@@ -38,6 +38,7 @@ def bar(vec, normalize=2, title=''):
     sns.barplot(x=x, y=y, color='blue')
     plt.xticks(rotation=90)
     plt.title(f'{title}, norm: {normalize}')
+    plt.grid()
     plt.show()
 
 
@@ -45,4 +46,5 @@ def line(vec, title=''):
     # given a vector draw line plot
     plt.plot(vec)
     plt.title(title)
+    plt.grid()
     plt.show()
