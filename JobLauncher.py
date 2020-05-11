@@ -65,7 +65,7 @@ class Task():
         return incomplete
 
 class JobLauncher():
-    def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd = ''):
+    def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd='', submission_check=False):
         '''
         task_gen: is a function that returns list of Task objects. Task object has two parts.
             cmd (string): command that need to be executed. Generally it is the executable with full path. ex. /home/shanto/exe_search
@@ -75,6 +75,7 @@ class JobLauncher():
         sbatch_extra_cmd: is the cmd that need to place in between sbatch header and executable. Normally it is used to load library or add path
                           - make sure all the commands are with new line including last line 
         tasks_each_launch: usually it is 1 for palab and n for terra cluster
+        submission_check: if submission check is true it'll print the submission job without actually submitting. It is for debug purpose
         '''
         self.task_gen = task_gen
         
@@ -87,9 +88,11 @@ class JobLauncher():
         self.job_dir = f'{os.getcwd()}/.job'
         pyutils.mkdir_p(self.job_dir)
 
-        self.job_file_name = 'tmp.job' # file that submit task_file
+        self.job_file_name = 'tmp.job'  # file that submit task_file
 
         self.sbatch_extra_cmd = sbatch_extra_cmd
+
+        self.submission_check = submission_check  # test submission flag
 
     def sbatch_script(self, header, file):
         raise NotImplementedError
@@ -101,7 +104,7 @@ class TamuLauncher(JobLauncher):
     '''
     This module uses tamulauncher with slurm batch submission.
     '''
-    def __init__(self, task_gen, acc_id = 122818929441, tasks_each_launch = 42, no_cpu_per_task = 1, ntasks_per_node = 14, time = '00:40:00', mem = '50000M', job_name = 'job', sbatch_extra_cmd = ''):
+    def __init__(self, task_gen, acc_id = 122818929441, tasks_each_launch = 42, no_cpu_per_task = 1, ntasks_per_node = 14, time = '00:40:00', mem = '50000M', job_name = 'job', sbatch_extra_cmd = '', submission_check=False):
         '''
         :summary
         Let's assume we have in total 1000 tasks to submit. Each task needs 40 minutes time, 100M of memory and 2 cpu. Now assume we want to submit 100 task in each job. Thus, for each job submission
@@ -118,7 +121,7 @@ class TamuLauncher(JobLauncher):
         mem: memory needed for a job
         sbatch_extra_cmd: extra command to add in batch. e.g. adding PATH or set any value. New line must be provided for each command.
         '''
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd)
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd, submission_check=submission_check)
 
         self.job_name = job_name 
         self.acc_id = acc_id 
@@ -185,13 +188,14 @@ class TamuLauncher(JobLauncher):
             with open(job_file, 'w') as fh:
                 fh.writelines(script)
             print(f'sbatch {job_file}')
-            os.system(f'sbatch {job_file}')
+            if not self.submission_check:
+                os.system(f'sbatch {job_file}')
 
 class SlurmLauncher(JobLauncher):
     '''
     This module uses slurm batch submission.
     '''
-    def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=''):
+    def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd='', submission_check=False):
         '''
         Caution: time and mem doesn't have any effect here.
 
@@ -199,7 +203,7 @@ class SlurmLauncher(JobLauncher):
         task_gen is a function that return list of Task
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
         '''
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd)
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd, submission_check=submission_check)
 
     def sbatch_header(self, job_name, out):
         header = (
@@ -230,14 +234,15 @@ class SlurmLauncher(JobLauncher):
 
         # run the script
         print(f'sbatch {job_file}')
-        os.system(f'sbatch {job_file}')
+        if not self.submission_check:
+            os.system(f'sbatch {job_file}')
 
 
 class PAlabLauncher(SlurmLauncher):
     '''
     This module uses slurm batch submission.
     '''
-    def __init__(self, task_gen, tasks_each_launch = 1, no_cpu_per_task = 1, time = '9999:40:00', mem = '2000M', sbatch_extra_cmd = '', no_exclude_node = 1):
+    def __init__(self, task_gen, tasks_each_launch = 1, no_cpu_per_task = 1, time = '9999:40:00', mem = '2000M', sbatch_extra_cmd = '', no_exclude_node = 1, submission_check=False):
         '''
         Caution: time and mem doesn't have any effect here.
 
@@ -247,7 +252,7 @@ class PAlabLauncher(SlurmLauncher):
         '''
         # adding exclude node command
         self.no_exclude_node = no_exclude_node
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd)
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
 
     def _cluster_specific_header(self, node_name, no_exclude_node):
         # header to exclude node
@@ -285,7 +290,7 @@ class AtlasLauncher(SlurmLauncher):
     This module uses slurm batch submission.
     '''
 
-    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M', sbatch_extra_cmd=''):
+    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M', sbatch_extra_cmd='', submission_check=False):
         '''
         Caution: time and mem doesn't have any effect here.
 
@@ -293,7 +298,7 @@ class AtlasLauncher(SlurmLauncher):
         task_gen is a function that return list of Task
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
         '''
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd)
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
 
     def _add_partition(self, idx, header):
         # atlas has two partitions. Distribute as all: 3, 12-core: 1
@@ -322,7 +327,7 @@ class AtlasLauncher(SlurmLauncher):
 
 class TerraGPULauncher(PAlabLauncher):
 
-    def __init__(self, task_gen, acc_id=12281892943, tasks_each_launch = 1, no_cpu_per_task = 10, no_gpu=1, time = '24:00:00', mem = '100000M', sbatch_extra_cmd = '', no_exclude_node = 0):
+    def __init__(self, task_gen, acc_id=12281892943, tasks_each_launch = 1, no_cpu_per_task = 10, no_gpu=1, time = '24:00:00', mem = '100000M', sbatch_extra_cmd = '', no_exclude_node = 0, submission_check=False):
         '''
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
@@ -330,7 +335,7 @@ class TerraGPULauncher(PAlabLauncher):
         '''
         self.acc_id = acc_id
         self.no_gpu = no_gpu
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, no_exclude_node=no_exclude_node)
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, no_exclude_node=no_exclude_node, submission_check=submission_check)
 
     def _cluster_specific_header(self, node_name, no_exclude_node):
         # header to use gpu
