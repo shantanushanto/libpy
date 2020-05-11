@@ -11,13 +11,13 @@ def readme(dir):
 
 
 # cluster launch job
-def launch_job(cluster, callback_batch_gen, job_name, submission_check=False):
+def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, no_exlude_node=1, submission_check=False):
     sbatch_extra_cmd = "source activate rl\n"
     # choose cluster
     if cluster == 'palab':
-        server = PAlabLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
+        server = PAlabLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, no_exclude_node=no_exlude_node, submission_check=submission_check)
     elif cluster == 'atlas':
-        server = AtlasLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
+        server = AtlasLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, submission_check=submission_check)
     elif cluster == 'tamulauncher':
         server = TamuLauncher(callback_batch_gen, job_name=job_name, submission_check=submission_check)
     elif cluster == 'terragpu':
