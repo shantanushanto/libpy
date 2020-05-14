@@ -5,11 +5,25 @@ import json
 import sys
 import dill
 
-def mkdir_p(dir, verbose = False):
+def mkdir_p(dir, verbose = False, backup_existing=False):
     '''make a directory (dir) if it doesn't exist'''
-    if not os.path.exists(dir):
-        if verbose is True: print(f'-> Created new dir named: {dir}')
+    if not os.path.exists(dir):  # directory does not exist
+        if verbose is True: errprint(f'Created new dir named: {dir}')
         os.mkdir(dir)
+    else:  # dir exist
+        # renaming existing directory to a new dir name if directory is not empty
+        if len(os.listdir(dir)) > 0 and backup_existing:
+            # find new path that doesn't exist
+            for i in range(10000):
+                new_dir_path = f'{dir}_{i}'
+                if not os.path.exists(new_dir_path):
+                    break
+            # renaming directory
+            if verbose:
+                errprint(f'Moving dir {dir} -> {new_dir_path}')
+            os.rename(src=dir, dst=new_dir_path)
+            # now creating dir
+            os.mkdir(dir)
     return dir
 
 def dir_choice(dir, verbose = True):
@@ -51,12 +65,15 @@ def read_pickle(path):
         data = dill.load(file)
     return data
 
-def files_with_extension(dir, extension):
-    # given directory and extension get all files. All these files has full path
+def files_with_extension(dir, extension, fullpath=True):
+    # given directory and extension get all files.
     files = []
     for file in os.listdir(dir):
         if file.endswith(extension):
-            files.append(os.path.join(dir, file))
+            if fullpath:
+                files.append(os.path.join(dir, file))
+            else:
+                files.append(file)
     return files
 
 def merge_dict(d,d1):
