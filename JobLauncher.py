@@ -355,8 +355,8 @@ class TerraGPULauncher(PAlabLauncher):
 
 
 # cluster launch job
-def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1, atlas_ratio=4, submission_check=False):
-    sbatch_extra_cmd = "source activate rl\n"
+def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1, atlas_ratio=4, submission_check=False, sbatch_extra_cmd=''):
+    sbatch_extra_cmd += "source activate rl\n"
     # choose cluster
     if cluster == 'palab':
         server = PAlabLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, no_exclude_node=no_exlude_node, submission_check=submission_check)
