@@ -76,6 +76,12 @@ def files_with_extension(dir, extension, fullpath=True):
                 files.append(file)
     return files
 
+def rename_files_with_extension(dir, from_ext, to_ext):
+    files = files_with_extension(dir, extension=from_ext, fullpath=True)
+    for file in files:
+        file_new_name = f'{os.path.splitext(file)[0]}.to_ext'
+        os.rename(src=file, dst=file_new_name)
+
 def merge_dict(d,d1):
     for k,v in d1.items():
         if (k in d):
