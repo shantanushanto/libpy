@@ -48,3 +48,15 @@ def line(vec, title=''):
     plt.title(title)
     plt.grid()
     plt.show()
+
+def scatter(vec, title=''):
+    # vec is a n*2 list. First and second column is x and y axis correspondingly.
+    # separating data from vec
+    x, y = [], []
+    for d in vec:
+        x.append(d[0])
+        y.append(d[1])
+    plt.scatter(x=x, y=y)
+    plt.title(title)
+    plt.grid()
+    plt.show()
