@@ -19,6 +19,7 @@ def mkdir_p(dir, verbose = False, backup_existing=False, if_contains=None):
         if backup_existing and len(os.listdir(dir)) > 0:
             # check contains helper
             def helper_contains():
+                # check if if_contains is a list
                 if not isinstance(if_contains, list):
                     raise ValueError('if_contains in mkdir_p is not a list')
 
