@@ -4,15 +4,34 @@ import time
 import json
 import sys
 import dill
+import re
 
-def mkdir_p(dir, verbose = False, backup_existing=False):
+def mkdir_p(dir, verbose = False, backup_existing=False, if_contains=None):
     '''make a directory (dir) if it doesn't exist'''
+    # if_contains: backup_existing True if_contains is a list. If there is any file/directory in the
+    #              first (not recursive) pass match with if_contains then backup
     if not os.path.exists(dir):  # directory does not exist
         if verbose is True: errprint(f'Created new dir named: {dir}')
         os.mkdir(dir)
     else:  # dir exist
-        # renaming existing directory to a new dir name if directory is not empty
-        if len(os.listdir(dir)) > 0 and backup_existing:
+        need_backup = False
+        # check if backup is needed
+        if backup_existing and len(os.listdir(dir)) > 0:
+            # check contains helper
+            def helper_contains():
+                if not isinstance(if_contains, list):
+                    raise ValueError('if_contains in mkdir_p is not a list')
+
+                files_inside = os.listdir(dir)
+                for pat in if_contains:
+                    if any(pat in file for file in files_inside):
+                        return True
+                return False
+
+            if (if_contains is None) or (if_contains and helper_contains()):
+                need_backup = True
+
+        if need_backup:
             # find new path that doesn't exist
             for i in range(10000):
                 new_dir_path = f'{dir}_{i}'
@@ -120,3 +139,6 @@ def errprint(str, flush=True, time_stamp=True, new_line=True):
     if new_line: str = f'{str}\n'
     sys.stderr.write(str)
     if flush: sys.stderr.flush()
+
+if __name__ == '__main__':
+    mkdir_p('.tmp', verbose=True, backup_existing=True, if_contains='.py')
