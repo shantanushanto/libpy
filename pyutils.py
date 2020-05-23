@@ -53,24 +53,30 @@ def dir_choice(dir, verbose = True):
         tot_file = len(os.listdir(dir))
 
         # take input to execute
-        inp = input(f'{dir} exist! Total file inside: {tot_file}\nNew: n, Delete: d, Empty directory: e, Continue: c, Abort a -> ')
+        inp = input(f'{dir} exist! Total file inside: {tot_file}\nNew: n, Delete: d, Empty directory: e, Continue: c, Abort: a, Backup: b -> ')
         if inp == 'e':
-            if verbose is True: print(f'-> Cleaning inside of the dir: {dir}')
-            shutil.rmtree(dir) # delete all files and folder inside it
+            if verbose: print(f'-> Cleaning inside of the dir: {dir}')
+            shutil.rmtree(dir)  # delete all files and folder inside it
             mkdir_p(dir)
-        if inp == 'd':
-            if verbose is True: print(f'-> Deleting the dir: {dir}')
+        elif inp == 'd':
+            if verbose: print(f'-> Deleting the dir: {dir}')
             shutil.rmtree(dir)
             exit(0)
-        if inp == 'a':
-            if verbose is True: print('-> Aborting...')
+        elif inp == 'a':
+            if verbose: print('-> Aborting...')
             exit(0)
-        if inp == 'n':
+        elif inp == 'n':
             # take new directory name
             new_dir = input(f'Enter your desired directory name: ')
             new_dir = os.path.join(os.path.dirname(dir), new_dir)
             # if new dir name exist do same process again
             return dir_choice(new_dir, verbose)
+        elif inp == 'b':
+            if verbose: print(' -> Backing up and creating new directory..')
+            mkdir_p(dir, verbose=verbose, backup_existing=True)
+        else:
+            if verbose: print(' -> Invalid option chosen..')
+            dir_choice(dir=dir, verbose=verbose)
     else:
         mkdir_p(dir, verbose)
 
