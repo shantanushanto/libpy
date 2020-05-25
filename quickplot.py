@@ -1,6 +1,6 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
-
+import os
 import numpy as np
 from copy import deepcopy
 
@@ -42,13 +42,18 @@ def bar(vec, normalize=2, title=''):
     plt.show()
 
 
-def line(vec, title=''):
+def line(vec, title='', save_path=None):
     # given a vector draw line plot
     plt.plot(vec)
     plt.title(title)
     plt.grid()
-    plt.show()
 
+    if save_path:
+        fig_name = title.replace(' ', '_')
+        path = os.path.join(save_path, fig_name)
+        plt.savefig(path)
+
+    plt.show()
 def scatter(vec, title=''):
     # vec is a n*2 list. First and second column is x and y axis correspondingly.
     # separating data from vec
