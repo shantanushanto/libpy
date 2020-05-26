@@ -6,6 +6,8 @@ import sys
 import dill
 import re
 
+from libpy import commonutils
+
 def mkdir_p(dir, verbose = False, backup_existing=False, if_contains=None):
     '''make a directory (dir) if it doesn't exist'''
     # if_contains: backup_existing True if_contains is a list. If there is any file/directory in the
@@ -73,6 +75,7 @@ def dir_choice(dir, verbose = True):
             return dir_choice(new_dir, verbose)
         elif inp == 'b':
             if verbose: print(' -> Backing up and creating new directory..')
+            commonutils.readme(dir, header='Why want to backup?')
             mkdir_p(dir, verbose=verbose, backup_existing=True)
         else:
             if verbose: print(' -> Invalid option chosen..')
