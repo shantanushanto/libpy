@@ -49,7 +49,7 @@ def mkdir_p(dir, verbose = False, backup_existing=False, if_contains=None):
     return dir
 
 def dir_choice(dir, verbose = True):
-    if os.path.exists(dir):
+    if os.path.exists(dir) and len(os.listdir(dir)) > 0:
 
         # number of file in the directory
         tot_file = len(os.listdir(dir))
