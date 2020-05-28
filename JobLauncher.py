@@ -104,7 +104,7 @@ class TamuLauncher(JobLauncher):
     '''
     This module uses tamulauncher with slurm batch submission.
     '''
-    def __init__(self, task_gen, acc_id = 122818929441, tasks_each_launch = 42, no_cpu_per_task = 1, ntasks_per_node = 14, time = '00:40:00', mem = '50000M', job_name = 'job', sbatch_extra_cmd = '', submission_check=False):
+    def __init__(self, task_gen, acc_id = 122818929441, tasks_each_launch = 14, no_cpu_per_task = 1, ntasks_per_node = 14, time = '00:40:00', mem = '50000M', job_name = 'job', sbatch_extra_cmd = '', submission_check=False):
         '''
         :summary
         Let's assume we have in total 1000 tasks to submit. Each task needs 40 minutes time, 100M of memory and 2 cpu. Now assume we want to submit 100 task in each job. Thus, for each job submission
@@ -114,7 +114,7 @@ class TamuLauncher(JobLauncher):
         :param
         task_gen: is a function that return list of Task
         acc_id: number of the account
-        tasks_each_launch: how many task are in each job submission
+        tasks_each_launch: how many task are in each job submission (previously used 42)
         no_cpu_per_task: cpu allocated for each task
         ntasks_per_node:
         time: time to run all tasks in a job
@@ -364,7 +364,8 @@ def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', 
         server = AtlasLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, atlas_ratio=atlas_ratio, submission_check=submission_check)
     elif cluster == 'tamulauncher':
         import router  # as router may not be present in every project importing here
-        sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModuleCPU.sh")}'
+        sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModuleCPU.sh")}\n' \
+                           f'unset I_MPI_PMI_LIBRARY'
         server = TamuLauncher(callback_batch_gen, job_name=job_name, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time, submission_check=submission_check)
     elif cluster == 'terragpu':
         import router  # as router may not be present in every project importing here
