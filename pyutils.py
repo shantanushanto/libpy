@@ -74,8 +74,9 @@ def dir_choice(dir, verbose = True):
             # if new dir name exist do same process again
             return dir_choice(new_dir, verbose)
         elif inp == 'b':
-            if verbose: print(' -> Backing up and creating new directory..')
-            commonutils.readme(dir, header='Why want to backup?')
+            if verbose:
+                commonutils.readme(dir, header='Why want to backup?')
+                print(' -> Backing up and creating new directory..')
             mkdir_p(dir, verbose=verbose, backup_existing=True)
         elif inp == 'c':
             pass
