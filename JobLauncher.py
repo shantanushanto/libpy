@@ -355,7 +355,8 @@ class TerraGPULauncher(PAlabLauncher):
 
 
 # cluster launch job
-def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1, atlas_ratio=4, submission_check=False, sbatch_extra_cmd='', acc_id=122818929441):
+def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1, atlas_ratio=4, submission_check=False, sbatch_extra_cmd='',
+               acc_id=122818929441, tasks_each_launch=14):
     sbatch_extra_cmd += "source activate rl\n"
     # choose cluster
     if cluster == 'palab':
@@ -366,7 +367,7 @@ def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', 
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModuleCPU.sh")}\n' \
                            f'unset I_MPI_PMI_LIBRARY'
-        server = TamuLauncher(callback_batch_gen, job_name=job_name, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time, submission_check=submission_check)
+        server = TamuLauncher(callback_batch_gen, job_name=job_name, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time, submission_check=submission_check, tasks_each_launch=tasks_each_launch)
     elif cluster == 'terragpu':
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'

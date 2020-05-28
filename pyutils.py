@@ -77,6 +77,8 @@ def dir_choice(dir, verbose = True):
             if verbose: print(' -> Backing up and creating new directory..')
             commonutils.readme(dir, header='Why want to backup?')
             mkdir_p(dir, verbose=verbose, backup_existing=True)
+        elif inp == 'c':
+            pass
         else:
             if verbose: print(' -> Invalid option chosen..')
             dir_choice(dir=dir, verbose=verbose)
