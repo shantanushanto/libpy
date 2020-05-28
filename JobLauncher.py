@@ -141,7 +141,7 @@ class TamuLauncher(JobLauncher):
             f'#SBATCH --output={self.job_dir}/{self.job_name}.%j\n'
             f'#SBATCH --time={self.time}\n'            
             f'#SBATCH --ntasks={self.no_tasks}\n'       
-            #f'#SBATCH --ntasks-per-node={self.ntasks_per_node}\n'
+            f'#SBATCH --ntasks-per-node={self.ntasks_per_node}\n'
             f'#SBATCH --cpus-per-task={self.no_cpu_per_task}\n'
             f'#SBATCH --mem={self.mem}\n'
             f'#SBATCH --account={self.acc_id}\n'
@@ -369,6 +369,7 @@ def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', 
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModuleCPU.sh")}\n' \
                            f'unset I_MPI_PMI_LIBRARY'
+        # don't use tasks_each_launch in tamulauncher. It has a bug that doesn't follow tasks-per-node hence request large SUs
         server = TamuLauncher(callback_batch_gen, job_name=job_name, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time, submission_check=submission_check, tasks_each_launch=tasks_each_launch)
     elif cluster == 'terragpu':
         import router  # as router may not be present in every project importing here
