@@ -120,6 +120,8 @@ class TamuLauncher(JobLauncher):
         time: time to run all tasks in a job
         mem: memory needed for a job
         sbatch_extra_cmd: extra command to add in batch. e.g. adding PATH or set any value. New line must be provided for each command.
+
+        see https://support.ceci-hpc.be/doc/_contents/SubmittingJobs/SlurmFAQ.html (Q05) for better understanding of allocation
         '''
         super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd, submission_check=submission_check)
 
@@ -139,7 +141,7 @@ class TamuLauncher(JobLauncher):
             f'#SBATCH --output={self.job_dir}/{self.job_name}.%j\n'
             f'#SBATCH --time={self.time}\n'            
             f'#SBATCH --ntasks={self.no_tasks}\n'       
-            f'#SBATCH --ntasks-per-node={self.ntasks_per_node}\n'
+            #f'#SBATCH --ntasks-per-node={self.ntasks_per_node}\n'
             f'#SBATCH --cpus-per-task={self.no_cpu_per_task}\n'
             f'#SBATCH --mem={self.mem}\n'
             f'#SBATCH --account={self.acc_id}\n'
