@@ -364,7 +364,7 @@ def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', 
     elif cluster == 'tamulauncher':
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
-        server = TamuLauncher(callback_batch_gen, job_name=job_name, submission_check=submission_check, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd)
+        server = TamuLauncher(callback_batch_gen, job_name=job_name, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time, submission_check=submission_check)
     elif cluster == 'terragpu':
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
