@@ -129,12 +129,13 @@ class TamuLauncher(JobLauncher):
 
         self.task_file_name = 'tasks' # file that contain all commands to run the exe
 
-    def sbatch_header(self):
+    def sbatch_header(self, job_name='job'):
+        if job_name == 'job': job_name=self.job_name  # if nothing is passed use default job_name
         header = (
             f'#!/bin/bash\n'
             f'#SBATCH --export=NONE\n'               
             f'#SBATCH --get-user-env=L\n'            
-            f'#SBATCH --job-name={self.job_name}\n'
+            f'#SBATCH --job-name={job_name}\n'
             f'#SBATCH --output={self.job_dir}/{self.job_name}.%j\n'
             f'#SBATCH --time={self.time}\n'            
             f'#SBATCH --ntasks={self.no_tasks}\n'       
@@ -174,15 +175,15 @@ class TamuLauncher(JobLauncher):
         tasks = self.task_gen()
         self.check_launcher_cache()
 
-        for i in range(0, len(tasks), self.no_tasks):
+        for job_id, i in enumerate(range(0, len(tasks), self.no_tasks)):
             tasks_job = self._get_tasks_file(tasks[i:i+self.no_tasks])
 
             # construct header
-            header = self.sbatch_header() + self.sbatch_extra_cmd
+            header = self.sbatch_header(job_name=f'{self.job_name}_{job_id}') + self.sbatch_extra_cmd
             # construct script
             script = self.sbatch_script(header=header, file=tasks_job)
             
-            u_job_file_name = f'{self.job_file_name}_{uuid.uuid4()}'
+            u_job_file_name = f'{self.job_file_name}_{job_id}_{uuid.uuid4()}'
             job_file = os.path.join(self.job_dir, u_job_file_name)
             with open(job_file, 'w') as fh:
                 fh.writelines(script)
