@@ -45,7 +45,7 @@ def json_merge(dir_path, merged_file='all.final', recreate=True):
 
 
 # this is a combination of first json_merge and json_merge_read_single
-def json_get_merged(dir_path, merged_file='all.final', recreate=True):
+def json_merge_and_get_data(dir_path, merged_file='all.final', recreate=True):
     path = json_merge(dir_path=dir_path, merged_file=merged_file, recreate=recreate)
     data = json_merge_read_single(path=path)
     return data
