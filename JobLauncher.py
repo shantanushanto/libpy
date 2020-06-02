@@ -234,6 +234,11 @@ class TamuLauncher(JobLauncher):
         tasks = self.task_gen()
         self.check_launcher_cache()
 
+        # number of submitted jobs will be
+        total_jobs = int(len(tasks)/self.no_tasks)
+        if len(tasks)%self.no_tasks > 0: total_jobs += 1
+        print(f'Total number of sbatch job: {total_jobs}')
+
         for job_id, i in enumerate(range(0, len(tasks), self.no_tasks)):
             tasks_job = self._get_tasks_file(tasks[i:i+self.no_tasks])
 
