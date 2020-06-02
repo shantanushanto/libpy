@@ -209,7 +209,7 @@ class TamuLauncher(JobLauncher):
     def sbatch_script(self, header, file):
         script = (
             f'{header}\n'
-            f'tamulauncher --no-restart {file}\n'
+            f'tamulauncher {file}\n'
             )
         return script 
     
