@@ -84,7 +84,7 @@ class TaskGenerator:
         tasks = self.batch_generator()
         tasks_incomplete = []
         for task in tasks:
-            if pyutils.is_job_finished(file_path=task.out):
+            if not pyutils.is_job_finished(file_path=task.out):
                 tasks_incomplete.append(task)
 
         # show detail files if wanted
