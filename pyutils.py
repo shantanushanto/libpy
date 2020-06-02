@@ -8,6 +8,7 @@ import re
 
 from libpy import commonutils
 
+
 def mkdir_p(dir, verbose = False, backup_existing=False, if_contains=None):
     '''make a directory (dir) if it doesn't exist'''
     # if_contains: backup_existing True if_contains is a list. If there is any file/directory in the
@@ -47,6 +48,7 @@ def mkdir_p(dir, verbose = False, backup_existing=False, if_contains=None):
             # now creating dir
             os.mkdir(dir)
     return dir
+
 
 def dir_choice(dir, verbose = True):
     if os.path.exists(dir) and len(os.listdir(dir)) > 0:
@@ -88,14 +90,17 @@ def dir_choice(dir, verbose = True):
 
     return dir
 
+
 def write_pickle(path, data):
     with open(path, 'wb') as file:
         dill.dump(data, file)
+
 
 def read_pickle(path):
     with open(path, 'rb') as file:
         data = dill.load(file)
     return data
+
 
 def files_with_extension(dir, extension, fullpath=True):
     # given directory and extension get all files.
@@ -107,6 +112,7 @@ def files_with_extension(dir, extension, fullpath=True):
             else:
                 files.append(file)
     return files
+
 
 def rename_files_with_extension(dir, from_ext, to_ext, verbose=True):
     files = files_with_extension(dir, extension=from_ext, fullpath=True)
@@ -127,9 +133,29 @@ def merge_dict(d,d1):
             d[k] = d1[k]
     return d
 
+
 tag_job_finished_successfully = 'JobFinishedSuccessfully'
 def print_job_finished():
     sys.stderr.write(f'{time.ctime()}\n{tag_job_finished_successfully}\n')
+
+
+def is_job_finished(file_path, finish_tag=tag_job_finished_successfully):
+    # file_path: raw full file path without any extension
+    # finish_tag: default finish tag
+    err_path = f'{file_path}.err'
+    out_path = f'{file_path}.out'
+
+    # check for finish tag in err
+    if os.path.isfile(err_path):  # check if file exist but finish tag doesn't exist
+        with open(err_path, 'r') as f:
+            # check finish tag
+            if finish_tag in f.read():
+                # out file exists and size is > 0
+                if os.path.isfile(out_path) and os.stat(out_path).st_size > 0:
+                    return True
+
+    return False
+
 
 def print_log(log):
     # print final log dictionary with termination message
@@ -137,6 +163,7 @@ def print_log(log):
     print(js)
     # tag use to identify successfully finished job
     print_job_finished()
+
 
 def normalize(prob):
     tot = sum(prob)
@@ -146,12 +173,14 @@ def normalize(prob):
         p[i] /= tot
     return p
 
+
 def errprint(str, flush=True, time_stamp=True, new_line=True):
     # By default flush, add \n at end and time
     if time_stamp: str = f'Time: {time.ctime()} > {str}'
     if new_line: str = f'{str}\n'
     sys.stderr.write(str)
     if flush: sys.stderr.flush()
+
 
 if __name__ == '__main__':
     mkdir_p('.tmp', verbose=True, backup_existing=True, if_contains='.py')

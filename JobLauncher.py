@@ -3,6 +3,7 @@ import uuid
 import time
 import dill
 import sys
+import random
 
 from libpy import pyutils
 
@@ -46,13 +47,8 @@ class Task():
             incomplete_tasks = []
             # check finish tag from each file or existence of file
             for task in submitted_tasks:
-                err_path = f'{task.out}.err'
-                if os.path.isfile(err_path): # check if file exist but finish tag doesn't exist
-                    with open(err_path, 'r') as f:
-                        # check finish tag
-                        if finish_tag not in f.read():
-                            incomplete_tasks.append(task)
-                else: # err file doesn't exist. Need to rerun
+                # check if job is finished
+                if not pyutils.is_job_finished(file_path=task.out):
                     incomplete_tasks.append(task)
 
             return incomplete_tasks
@@ -63,6 +59,67 @@ class Task():
         incomplete = get_incomplete_task(submitted_tasks)
         if verbose: sys.stderr.write(f'Total incomplte task: {len(incomplete)}\n')
         return incomplete
+
+class TaskGenerator:
+
+    def __init__(self, batch_generator, data_dir):
+        self.batch_generator = batch_generator
+        self.data_dir = data_dir
+
+        self.tasks = None  # tasks set for caching
+
+    # create testing run tasks for batch submission
+    def _test_batch_generator(self):
+        tasks = self.batch_generator()
+        test_task = random.sample(tasks, min(len(tasks), 5))
+        return test_task
+
+    # submit jobs from recent cache
+    def _incomplete_batch_generator(self):
+        tasks = Task.incomplete_tasks_from_cache(self.data_dir)
+        return tasks
+
+    # check file name to submit new jobs
+    def _file_check_batch_generator(self):
+        tasks = self.batch_generator()
+        tasks_incomplete = []
+        for task in tasks:
+            if pyutils.is_job_finished(file_path=task.out):
+                tasks_incomplete.append(task)
+
+        # show detail files if wanted
+        inp = input(f'#incomplete tasks: {len(tasks_incomplete)}. Show details? [y/n] -> ')
+        if inp == 'y':
+            for task in tasks_incomplete:
+                print(task.out)
+            # grant permission to submit
+            inp = input('Continue to submit? [y/n] -> ')
+            if inp != 'y':
+                exit(0)
+        return tasks_incomplete
+
+    # select batchgen type
+    def _callback_batch_gen_options(self):
+        batch_gen_type = input('What type of generator to run? Option: test, all, cache, file -> ')
+        if batch_gen_type == 'test':
+            return self._test_batch_generator
+        elif batch_gen_type == 'all':
+            return self.batch_generator
+        elif batch_gen_type == 'cache':
+            return self._incomplete_batch_generator
+        elif batch_gen_type == 'file':
+            return self._file_check_batch_generator
+        else:
+            print('Wrong input!')
+            return self._callback_batch_gen_options()
+
+    def get_callback_batch_gen(self):
+
+        callback_batch_gen = self._callback_batch_gen_options()
+        # creating task cache
+        Task.cache_tasks(callback_batch_gen(), self.data_dir)
+        return callback_batch_gen
+
 
 class JobLauncher():
     def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd='', submission_check=False):
