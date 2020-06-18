@@ -120,6 +120,34 @@ class TaskGenerator:
         Task.cache_tasks(callback_batch_gen(), self.data_dir)
         return callback_batch_gen
 
+# given kwargs dict generate job name and arguments for cmd
+def gen_job_name(kwargs):
+
+    job_name, cargs = '', ''
+    # generate job_name and cargs
+    for k, v in kwargs.items():
+        # generate job name
+        if not isinstance(v, str) or (
+                isinstance(v, str) and len(v) < 30):  # avoid large key value pair, such as prg_path.
+            # taking 1 characer for key name. if 1 char match then take more char untill don't match
+            # for kidx in range(1, len(k)):
+            #     kname = k[:kidx].replace('_', '')
+            #     if kname not in job_name: break
+
+            # take first char divide by underscore
+            kname = ''
+            for kp in k.split('_'):
+                if len(kp) > 0: kname += kp[0]
+            kv = f'{kname}-{v}'
+            job_name += kv if job_name == '' else f'_{kv}'  # (key, val) is separated by underscore
+        # generate cmd arguments
+        cargs = f'{cargs} --{k} {v}'
+
+    if len(job_name) > 210:
+        raise ValueError(f'File name may exceed 255 characters. Checking done from create_task. e.g. {job_name}')
+
+    return job_name, cargs
+
 
 class JobLauncher():
     def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd='', submission_check=False):
