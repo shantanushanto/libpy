@@ -49,3 +49,12 @@ def json_merge_and_get_data(dir_path, merged_file='all.final', recreate=True):
     path = json_merge(dir_path=dir_path, merged_file=merged_file, recreate=recreate)
     data = json_merge_read_single(path=path)
     return data
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dir", required=True, help="dir to merge file")
+    args = parser.parse_args()
+
+    json_merge(dir_path=args.dir)
