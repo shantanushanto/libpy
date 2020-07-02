@@ -100,14 +100,9 @@ class TaskGenerator:
 
     def _all_batch_generator(self):
         tasks_incomplete = self.batch_generator()
-        inp = input(f'#incomplete tasks: {len(tasks_incomplete)}. Show details (n will submit immediately)?  [y/n] -> ')
-        if inp == 'y':
-            for task in tasks_incomplete:
-                print(task.out)
-            # grant permission to submit
-            inp = input('Continue to submit? [y/n] -> ')
-            if inp != 'y':
-                exit(0)
+        inp = input(f'#Total tasks: {len(tasks_incomplete)}. Submit?  [y/n] -> ')
+        if inp != 'y':
+            exit(0)
         return tasks_incomplete
 
     # select batchgen type
