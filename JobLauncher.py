@@ -88,7 +88,19 @@ class TaskGenerator:
                 tasks_incomplete.append(task)
 
         # show detail files if wanted
-        inp = input(f'#incomplete tasks: {len(tasks_incomplete)}. Show details? [y/n] -> ')
+        inp = input(f'#incomplete tasks: {len(tasks_incomplete)}. Show details (n will submit immediately)? [y/n] -> ')
+        if inp == 'y':
+            for task in tasks_incomplete:
+                print(task.out)
+            # grant permission to submit
+            inp = input('Continue to submit? [y/n] -> ')
+            if inp != 'y':
+                exit(0)
+        return tasks_incomplete
+
+    def _all_batch_generator(self):
+        tasks_incomplete = self.batch_generator()
+        inp = input(f'#incomplete tasks: {len(tasks_incomplete)}. Show details (n will submit immediately)?  [y/n] -> ')
         if inp == 'y':
             for task in tasks_incomplete:
                 print(task.out)
@@ -104,7 +116,7 @@ class TaskGenerator:
         if batch_gen_type == 'test':
             return self._test_batch_generator
         elif batch_gen_type == 'all':
-            return self.batch_generator
+            return self._all_batch_generator
         elif batch_gen_type == 'cache':
             return self._incomplete_batch_generator
         elif batch_gen_type == 'file':
