@@ -91,6 +91,17 @@ def dir_choice(dir, verbose = True):
     return dir
 
 
+# check if a file path exists
+def file_exists(path, verbose=True):
+    if os.path.exists(path=path):
+        if verbose: print(f'-> File exists: {path}')
+        inp = input(f'Continue: c, Abort: a -> ')
+        if inp != 'c':
+            if verbose: print('-> Aborting...')
+            exit(0)
+
+
+
 def write_pickle(path, data):
     with open(path, 'wb') as file:
         dill.dump(data, file)
