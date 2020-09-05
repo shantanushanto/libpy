@@ -16,7 +16,7 @@ class Task():
     @staticmethod
     def cache_tasks(tasks, dir):
         # cache list of tasks.
-        task_cache_file = os.path.join(dir, f'.tasks_{time.time_ns()}_n-task-{len(tasks)}_{time.ctime().replace(" ", "-")}.tasks')
+        task_cache_file = os.path.join(dir, f'.tasks_{time.time()}_n-task-{len(tasks)}_{time.ctime().replace(" ", "-")}.tasks')
         with open(task_cache_file, 'wb') as file:
             dill.dump(tasks, file)
 
