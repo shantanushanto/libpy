@@ -226,7 +226,7 @@ class TamuLauncher(JobLauncher):
     def sbatch_header(self, job_name='job'):
         if job_name == 'job': job_name=self.job_name  # if nothing is passed use default job_name
         header = (
-            f'#!/bin/bash\n'
+            f'#!/bin/sh\n'
             f'#SBATCH --export=NONE\n'               
             f'#SBATCH --get-user-env=L\n'            
             f'#SBATCH --job-name={job_name}\n'
@@ -306,7 +306,7 @@ class SlurmLauncher(JobLauncher):
 
     def sbatch_header(self, job_name, out):
         header = (
-            f'#!/bin/bash\n'
+            f'#!/bin/sh\n'
             f'#SBATCH --job-name={job_name}\n'
             f'#SBATCH --output={out}.out\n'
             f'#SBATCH --error={out}.err\n'
