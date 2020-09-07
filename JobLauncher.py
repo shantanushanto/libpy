@@ -411,6 +411,19 @@ class AtlasLauncher(SlurmLauncher):
         return header
 
     def launch(self):
+
+        # confirming if only single partition is selected
+        if self.atlas_ratio == -1:
+            partition = 'all'
+        elif self.atlas_ratio == -2:
+            partition = '12-core'
+        else:
+            partition = 'mix'
+
+        opt = input(f'Submitting jobs to patition: {partition}. [y/n] -> ')
+        if opt != 'y':
+            exit(0)
+
         # generating all tasks
         tasks = self.task_gen()
 
