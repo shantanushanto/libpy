@@ -26,7 +26,7 @@ def json_merge_read_single(path):
 
 
 # merge json file into single final output
-def json_merge(dir_path, merged_file='all.final', recreate=True):
+def json_merge(dir_path, merged_file='all.final', recreate=True, merge_file_endswith='.out'):
 
     merged_file_path = os.path.join(dir_path, merged_file)
 
@@ -37,7 +37,7 @@ def json_merge(dir_path, merged_file='all.final', recreate=True):
     # merge file
     with open(merged_file_path, 'w') as outfile:
         for filename in tqdm(os.listdir(dir_path), desc=f'Merging file in dir: {dir_path}'):
-            if filename.endswith(".out"):
+            if filename.endswith(merge_file_endswith):
                 with open(os.path.join(dir_path, filename), 'r') as infile:
                     for line in infile:
                         outfile.write(line)
@@ -45,8 +45,8 @@ def json_merge(dir_path, merged_file='all.final', recreate=True):
 
 
 # this is a combination of first json_merge and json_merge_read_single
-def json_merge_and_get_data(dir_path, merged_file='all.final', recreate=True):
-    path = json_merge(dir_path=dir_path, merged_file=merged_file, recreate=recreate)
+def json_merge_and_get_data(dir_path, merged_file='all.final', recreate=True, merge_file_endswith='.out'):
+    path = json_merge(dir_path=dir_path, merged_file=merged_file, recreate=recreate, merge_file_endswith=merge_file_endswith)
     data = json_merge_read_single(path=path)
     return data
 
@@ -55,6 +55,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir", required=True, help="dir to merge file")
+    parser.add_argument("--merge_file_endswith", required=False, default='.out', type=str, help="Merge file endswith")
     args = parser.parse_args()
 
-    json_merge(dir_path=args.dir)
+    json_merge(dir_path=args.dir, merge_file_endswith=args.merge_file_endswith)

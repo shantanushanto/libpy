@@ -126,6 +126,8 @@ def files_with_extension(dir, extension, fullpath=True):
 
 
 def rename_files_with_extension(dir, from_ext, to_ext, verbose=True):
+    # from_ext: Pass extension name with . if necessary.
+    # to_ext: Only extension name. No dot included. (.) is added so no need to pass .
     files = files_with_extension(dir, extension=from_ext, fullpath=True)
     for file in files:
         file_new_name = f'{os.path.splitext(file)[0]}.{to_ext}'
