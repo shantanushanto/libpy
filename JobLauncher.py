@@ -128,7 +128,9 @@ class TaskGenerator:
         return callback_batch_gen
 
 # given kwargs dict generate job name and arguments for cmd
-def gen_job_name(kwargs):
+def gen_job_name(kwargs, data_dir, batch_path_suffix=None):
+    # data_dir: dir to save data. data_dir as added with batch_path
+    # batch_path: if given will be that one. Else default one
 
     job_name, cargs = '', ''
     # generate job_name and cargs
@@ -150,6 +152,10 @@ def gen_job_name(kwargs):
         # generate cmd arguments
         cargs = f'{cargs} --{k} {v}'
 
+    # adding batch_path from job name if no batch_path is given
+    batch_path = job_name if batch_path_suffix is None else batch_path_suffix
+    batch_path = os.path.join(data_dir, batch_path)  # construct full path
+    cargs = f'{cargs} --batch_path {batch_path}'
     if len(job_name) > 210:
         raise ValueError(f'File name may exceed 255 characters. Checking done from create_task. e.g. {job_name}')
 
