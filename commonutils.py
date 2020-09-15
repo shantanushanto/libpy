@@ -3,6 +3,8 @@ import time
 import json
 from tqdm import tqdm
 
+from libpy import pyutils
+
 
 # append readme text given a directory
 def readme(dir, header=None, desc=None):
@@ -27,7 +29,6 @@ def json_merge_read_single(path):
 
 # merge json file into single final output
 def json_merge(dir_path, merged_file='all.final', recreate=True, merge_file_endswith='.out'):
-
     merged_file_path = os.path.join(dir_path, merged_file)
 
     # if file exist and doesn't require recreation
@@ -46,13 +47,47 @@ def json_merge(dir_path, merged_file='all.final', recreate=True, merge_file_ends
 
 # this is a combination of first json_merge and json_merge_read_single
 def json_merge_and_get_data(dir_path, merged_file='all.final', recreate=True, merge_file_endswith='.out'):
-    path = json_merge(dir_path=dir_path, merged_file=merged_file, recreate=recreate, merge_file_endswith=merge_file_endswith)
+    path = json_merge(dir_path=dir_path, merged_file=merged_file, recreate=recreate,
+                      merge_file_endswith=merge_file_endswith)
     data = json_merge_read_single(path=path)
     return data
 
 
+def scp(letters: list, dir_copy: bool = False, check_exist: bool = True, verbose: bool = False,
+        prod: bool = False) -> None:
+    # given a list transfer file between cluster
+    # letters: list of [from[0], to[1]] list to transfer file.
+    # recursive: for dir transfer
+
+    # check for files overwritten
+    if check_exist:
+        files_to_overwrite = []
+        for letter in letters:
+            to_path = letter[1]
+            pyutils.Validation.overwriting(path=to_path, verbose=verbose)
+            files_to_overwrite.append(to_path)
+
+        pyutils.ActionRouter(f'Total {len(files_to_overwrite)}/{len(letters)} files to overwrite?', default_act_use=['abort', 'continue']).ask()
+
+
+    # transfer files
+    for letter in tqdm(letters, desc='Transferring file (scp)'):
+        from_path = letter[0]
+        to_path = letter[1]
+
+        extra_cmd = '-r' if dir_copy else ''
+
+        cmd = f'sshpass -p $tamu_pss scp -q {extra_cmd} {from_path} {to_path}'
+        if verbose:
+            print(f'scp from remote to local.\n{cmd}\n')
+
+        if prod:
+            os.system(cmd)
+
+
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir", required=True, help="dir to merge file")
     parser.add_argument("--merge_file_endswith", required=False, default='.out', type=str, help="Merge file endswith")

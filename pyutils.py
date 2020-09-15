@@ -5,11 +5,12 @@ import json
 import sys
 import dill
 import re
+from typing import List
 
 from libpy import commonutils
 
 
-def mkdir_p(dir, verbose = False, backup_existing=False, if_contains=None):
+def mkdir_p(dir, verbose=False, backup_existing=False, if_contains=None):
     '''make a directory (dir) if it doesn't exist'''
     # if_contains: backup_existing True if_contains is a list. If there is any file/directory in the
     #              first (not recursive) pass match with if_contains then backup
@@ -50,14 +51,15 @@ def mkdir_p(dir, verbose = False, backup_existing=False, if_contains=None):
     return dir
 
 
-def dir_choice(dir, verbose = True):
+def dir_choice(dir, verbose=True):
     if os.path.exists(dir) and len(os.listdir(dir)) > 0:
 
         # number of file in the directory
         tot_file = len(os.listdir(dir))
 
         # take input to execute
-        inp = input(f'{dir} exist! Total file inside: {tot_file}\nNew: n, Delete: d, Empty directory: e, Continue: c, Abort: a, Backup: b -> ')
+        inp = input(
+            f'{dir} exist! Total file inside: {tot_file}\nNew: n, Delete: d, Empty directory: e, Continue: c, Abort: a, Backup: b -> ')
         if inp == 'e':
             if verbose: print(f'-> Cleaning inside of the dir: {dir}')
             shutil.rmtree(dir)  # delete all files and folder inside it
@@ -91,15 +93,183 @@ def dir_choice(dir, verbose = True):
     return dir
 
 
-# check if a file path exists
-def file_exists(path, verbose=True):
-    if os.path.exists(path=path):
-        if verbose: print(f'-> File exists: {path}')
-        inp = input(f'Continue: c, Abort: a -> ')
-        if inp != 'c':
-            if verbose: print('-> Aborting...')
-            exit(0)
+class ActionRouterClass:
+    """
+    ================
+     Usage example:
+    ================
 
+    path = '/home/work/RPS/data'
+
+    def callback_yes(*args, **kwargs):
+        vpath = kwargs['path']
+        print('Full path is: ', vpath)
+
+    def callback_no(*args, **kwargs):
+        vpath = kwargs['path']
+        cnt = len(vpath.split('/'))
+        print(f'Segment in path: ', cnt)
+
+    (ActionRouter('Do you want to copy?', default_act_use=['abort'])
+     .add('yes', callback_yes, 10, path=path)
+     .add('no', callback_no, path=path)
+     .ask())
+    """
+    # Copy files? [continue (c), abort (a), use_cluster (u), undo (un)] -> {input}
+    def __init__(self, header: str, default_act_use=None):
+        if default_act_use is None:
+            use_default_act = []
+
+        self.header = header
+
+        self._default_act_use = default_act_use  # default action to add in actions list
+
+        # map input option to function
+        self.actions = {}  # contain (function, *args, **args)
+
+        # mapping short option to long option
+        self._short_opt = {}  # short -> opt mapping
+        self._opt_short = {}  # opt -> short mapping
+
+        self._last_opt_choosen = []  # keep all track of the option choosen last
+
+        # initializing
+        self._init()
+
+    # generate all default actions in a dictionary. It will be updated time to time
+    def _default_actions(self) -> dict:
+
+        def callback_abort(*args, **kwargs):
+            sys.exit(0)
+
+        def callback_continue(*args, **kwargs):
+            pass
+
+        actions = {'abort': (callback_abort, (), {}),
+                   'continue': (callback_continue, (), {})}
+        return actions
+
+    # initialize first
+    def _init(self):
+        # adding default actions
+        self._add_default_actions(default_act_use=self._default_act_use, actions=self.actions)
+
+    # add default actions to the original actions
+    def _add_default_actions(self, default_act_use: List[str], actions: dict):
+        # default_act_use: default actions to use
+        # actions: default actions where to add
+
+        default_actions = self._default_actions()
+        for action in default_act_use:
+            try:
+                act = default_actions[action]
+                actions[action] = act
+            except KeyError:
+                raise KeyError
+
+    # generate short option from option and map
+    # it is called when ask is called. Short option are generated from sorted long option
+    def _map_short_opt(self):
+
+        # reset previous mapping key
+        self._short_opt = {}
+        self._opt_short = {}
+
+        # get all option keys
+        opts = self.actions.keys()
+        for opt in sorted(opts):
+
+            # find unique short prefix
+            for i in range(len(opt)):
+                sopt = opt[:i+1]
+                if sopt not in self._short_opt:
+                    # map short opt to opt
+                    self._short_opt[sopt] = opt
+                    self._opt_short[opt] = sopt
+                    break
+
+    # generate option header with short option
+    def _gen_opt_header(self):
+        # mapping short option to long option
+        self._map_short_opt()
+
+        # generating header
+        opt_str = ", ".join(f'{k} ({self._opt_short[k]})' for k, v in self.actions.items())
+
+        opt_str = f'[{opt_str}]'
+        return opt_str
+
+    # get last nth option. Default last. Return the full option name
+    def last_opt(self, n=0):
+        try:
+            return self._last_opt_choosen[-n]
+        except KeyError:
+            raise KeyError
+
+    # add action
+    def add(self, opt, func, *args, **kwargs):
+        if opt in self.actions:
+            raise ValueError(f'{opt} is already taken for action option.')
+        # register option to action
+        self.actions[opt] = (func, args, kwargs)
+
+        return self
+
+    # ask for input
+    def ask(self):
+        opt_header = self._gen_opt_header()
+        inp = input(f'{self.header} {opt_header} -> ')
+
+        try:
+            # get opt from either first check short and then long opt
+            if inp in self._short_opt:
+                opt = self._short_opt[inp]
+            elif inp in self.actions:
+                opt = inp
+            else:
+                raise
+
+            # storing last option
+            if len(self._last_opt_choosen) == 0 or opt != self.last_opt():
+                self._last_opt_choosen.append(opt)
+
+            # get function and their arguments
+            callback, args, kwargs = self.actions[opt]
+            # call callback function
+            callback(*args, **kwargs)
+        except KeyError:
+            raise ValueError('Invalid option.')
+        return self
+
+
+# create a action router class and return for chaining access
+def ActionRouter(header='', default_act_use=None):
+    ar = ActionRouterClass(header=header, default_act_use=default_act_use)
+    return ar
+
+# ---------- End of ActionRouter ----------
+
+
+class Validation:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    # checking if overwriting anything that is existing previously
+    def overwriting(path, verbose=True):
+
+        # path is a file and exist
+        if os.path.isfile(path):
+            if verbose: errprint(f'{path} Exists!', time_stamp=False)
+            return True
+
+        # path is directory and not empty
+        if os.path.isdir(path) and len(os.listdir(path)) > 0:
+            no_file = len(os.listdir(path))
+            if verbose: errprint(f'{path} Exists! File inside {no_file}', time_stamp=False)
+            return True
+
+        return False
 
 
 def write_pickle(path, data):
@@ -138,8 +308,8 @@ def rename_files_with_extension(dir, from_ext, to_ext, verbose=True):
         errprint(f'Total files renamed: {len(files)}')
 
 
-def merge_dict(d,d1):
-    for k,v in d1.items():
+def merge_dict(d, d1):
+    for k, v in d1.items():
         if (k in d):
             d[k].update(d1[k])
         else:
@@ -148,6 +318,8 @@ def merge_dict(d,d1):
 
 
 tag_job_finished_successfully = 'JobFinishedSuccessfully'
+
+
 def print_job_finished():
     sys.stderr.write(f'{time.ctime()}\n{tag_job_finished_successfully}\n')
 
