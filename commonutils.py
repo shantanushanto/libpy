@@ -85,6 +85,42 @@ def scp(letters: list, dir_copy: bool = False, check_exist: bool = True, verbose
             os.system(cmd)
 
 
+# full path across clusters are different. Thus get path after the project root.
+# Assuming Project root name is unique in the path
+def path_from_project_root(path, project_name, add_project_dir=False, discard_last=True):
+    # add_project_dir: add the project dir in front of the returned path
+
+    dir_name = path.split('/')
+
+    # assuming project name will be unique in the path
+    no_name = dir_name.count(project_name)
+    if no_name > 1:
+        raise ValueError('Multiple dir with same project name')
+    elif no_name == 0:
+        raise ValueError('No project name in path')
+
+    # match project name start index
+    project_st_inx = dir_name.index(project_name)
+
+    if add_project_dir:
+        dir_name = dir_name[project_st_inx:]
+    else:
+        dir_name = dir_name[project_st_inx+1:]
+
+    path_starting_project = os.path.join(*dir_name)
+
+    if discard_last:
+        path_starting_project = os.path.split(path_starting_project)[0]
+
+    return path_starting_project
+
+
+# get full local path as remote path. Determined by project root and project prefix is appended
+def path_local_as_remote(project_root, path, discard_last=False):
+    local_path = os.path.join(project_root, path_from_project_root(path=path, discard_last=discard_last))
+    return local_path
+
+
 if __name__ == '__main__':
     import argparse
 
