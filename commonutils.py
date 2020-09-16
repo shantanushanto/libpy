@@ -117,7 +117,9 @@ def path_from_project_root(path, project_name, add_project_dir=False, discard_la
 
 # get full local path as remote path. Determined by project root and project prefix is appended
 def path_local_as_remote(project_root, path, discard_last=False):
-    local_path = os.path.join(project_root, path_from_project_root(path=path, discard_last=discard_last))
+    project_name = os.path.basename(project_root)
+    local_path = os.path.join(project_root,
+                              path_from_project_root(path=path, project_name=project_name, discard_last=discard_last))
     return local_path
 
 
