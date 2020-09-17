@@ -275,9 +275,9 @@ def tasks_launch_action_router(all_tasks):
                     # if task in slurm
                     task = Task.find(tasks=tasks, name=job['name'])
                     if task:
-                        if job['status'] == 'running':
+                        if job['status'] == 'RUNNING':
                             tasks_running.append(task)
-                        elif job['status'] == 'pending':
+                        elif job['status'] == 'PENDING':
                             tasks_pending.append(task)
                         else:
                             raise ValueError('Unknown job status')
