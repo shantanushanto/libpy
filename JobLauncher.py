@@ -675,13 +675,12 @@ class AtlasLauncher(SlurmLauncher):
 
         # getting free resources
         free_resource = self._get_resource(no_cpu=self.no_cpu_per_task)
-        # print(f'Resources available: {len(free_resource)}')
+        print(f'Resources available: {len(free_resource)}')
 
         # generating all tasks
         tasks = self.task_gen()
 
-        pyutils.ActionRouter(header=f'Resources need: {len(tasks)} available: {len(free_resource)}',
-                             default_act_use=['abort', 'continue']).ask()
+        # pyutils.ActionRouter(header=f'Resources need: {len(tasks)} available: {len(free_resource)}', default_act_use=['abort', 'continue']).ask()
 
         use_all = True
         if use_all:
