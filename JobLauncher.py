@@ -6,14 +6,113 @@ import sys
 import random
 import itertools
 import subprocess
+from typing import List
 
 from libpy import pyutils, commonutils
 
+class Slurm:
 
-class Task():
+    user = 'shanto'
+
+    @staticmethod
+    # cancel by status or job_id. job id either in int or string. For multiple job id must be string comma seperated
+    def scancel(opt: str, jobids=None, prod=False):
+        # opt : pending, all, id
+        scancel_pre = f'scancel -u {Slurm.user}'
+        if opt == 'all':
+            cmd = f'{scancel_pre}'  # scancel -u shanto
+        elif opt == 'pending':
+            cmd = f'{scancel_pre} --state PENDING'  # scancel -u shanto --state PENDING
+        elif opt == 'id':
+            # scancel your_job-id1, your_job-id2, your_jobiid3
+            if jobids == None:
+                pass
+            elif type(jobids) == int or type(jobids) == str:
+                cmd = f'{scancel_pre} {jobids}'
+            elif type(jobids) == list:
+                p = ", ".join(jobids)
+                cmd = f'{scancel_pre} {p}'
+        else:
+            raise ValueError('Invalid type')
+
+        if prod:
+            os.system(cmd)
+
+    @staticmethod
+    # job cancel by string/regular expression name
+    def scancel_name(reg_name: str, jobs: List[dict]):
+        # reg_name: regular expression string
+        # jobs: jobs is a dict list (id, name)
+        import re
+
+        reg = re.compile(reg_name)
+        # job to be canceled id and name
+        ids, names = [], []
+
+        # get job id that match with reg_name
+        for job in jobs:
+            id = job['id']
+            name = job['name']
+
+            if reg.search(name):
+                ids.append(id)
+                names.append(name)
+
+        # callbacks for ActionRouter
+        # Show details of jobs
+        def callback_show_details(*args, **kwargs):
+            ids = kwargs['ids']
+            names = kwargs['names']
+            for id, name in zip(ids, names):
+                print(id, name)
+            # if yes is selected call that action again
+            return {"type": "recall"}
+
+        # cancel all jobs
+        def callback_cancel(*args, **kwargs):
+            Slurm.scancel(opt='id', jobids=kwargs['ids'], prod=True)
+
+
+        pyutils.ActionRouter(header=f'Total job to be canceled: {len(ids)}')\
+            .add('show_details', callback_show_details, ids=ids, names=names)\
+            .add('cancel_direct', callback_cancel, ids=ids)\
+            .ask()
+
+    # get job that is in the sbatch running or pending
+    @staticmethod
+    def get_job_in_sbatch():
+
+        # return job in a list. job is dict of {id, status, name}
+        def parse(lines):
+            lines = lines.split('\n')
+            jobs = []
+            for line in lines:
+                u = line.split(' ')
+                job = {'id': u[0],
+                       'status': u[1],
+                       'name': u[2]
+                       }
+                jobs.append(job)
+            return jobs
+
+        cmd = ['squeue', f'-u {Slurm.user}', '--format="%i %T %j"', '--noheader']  # id, status, job_fullname
+        try:
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            jobs = parse(lines=result.stdout)
+            return jobs
+        except:
+            print(f"Error executing command: {cmd}")
+            return None
+
+
+class Task:
     def __init__(self, cmd, out):
         self.cmd = cmd
-        self.out = out
+        self.out = out  # full path of out file
+
+    # get only file name
+    def file_name(self):
+        return os.path.basename(self.out)
 
     @staticmethod
     def cache_tasks(tasks, dir):
@@ -62,6 +161,24 @@ class Task():
         if verbose: sys.stderr.write(f'Total incomplte task: {len(incomplete)}\n')
         return incomplete
 
+    @staticmethod
+    # Given list of tasks and name return if any of the task match the name
+    def find(tasks: List['Task'], name: str) -> bool:
+        for task in tasks:
+            if task.file_name() == name:
+                return True
+        return False
+
+    @staticmethod
+    # Given list of tasks and list of names to exclude return excluded task
+    def exclude(tasks: List['Task'], names: List[str]) -> List['Task']:
+        ret = []
+        for task in tasks:
+            if task.file_name() not in names:
+                ret.append(task)
+
+        return ret
+
 
 class TaskGenerator:
 
@@ -70,6 +187,59 @@ class TaskGenerator:
         self.data_dir = data_dir
 
         self.tasks = None  # tasks set for caching
+
+    def _incomplete_job(self, tasks_incomplete_by_file: List[Task], verbose=True) -> List[Task]:
+        # Works as: finding jobs in cluster, depending on the options, regenerate incomplete task to submit
+        # get job details running in cluster
+        job_in_slurm = Slurm.get_job_in_sbatch()
+
+        # calculate job number in different state
+        no_job = {'incomplete_by_file': len(tasks_incomplete_by_file), 'running': 0, 'pending': 0, 'incomplete': 0}
+
+        # job name by their status
+        name_pending, name_running = [], []
+
+        # calculate total running and pending jobs and store their name
+        for job in job_in_slurm:
+            if job['status'] == 'PENDING':
+                no_job['pending'] += 1
+                name_pending.append(job['name'])
+            elif job['status'] == 'RUNNING':
+                no_job['running'] += 1
+                name_running.append(job['name'])
+
+        # number of incomplete job
+        no_job['incomplete'] = no_job['incomplete_by_file'] - no_job['running']
+
+        # incomplete_tasks_by_file - pending - running
+        def callback_only_incomplete(*args, **kwargs):
+            tasks = Task.exclude(kwargs['tasks'], kwargs['exclude'])
+            return tasks
+
+        # incomplete_tasks_by_file - running. cancel pending and return incomplete including (pending jobs)
+        def callback_rebalance(*args, **kwargs):
+            # cancel pending jobs and subtract only running jobs from incomplete
+            Slurm.scancel(opt='pending', prod=True)
+            tasks = Task.exclude(kwargs['tasks'], kwargs['exclude'])
+            return tasks
+
+        # cancel all and return all tasks_incomplete_by_file
+        def callback_all_incomplete(*args, **kwargs):
+            # cancel all jobs and rerun from file
+            Slurm.scancel(opt='all', prod=True)
+            return kwargs['tasks']
+            pass
+
+        header = f'Job status [running: {no_job["running"]}, pending: {no_job["pending"]}, ' \
+                 f'incomplete: {no_job["incomplete"]}]'
+
+        tasks_incomplete = pyutils.ActionRouter(header=header)\
+            .add('only_incomplete (incomplete)', callback_only_incomplete, tasks=tasks_incomplete_by_file, exclude=name_pending+name_running)\
+            .add('rebalance (incomplete+pending)', callback_rebalance, tasks=tasks_incomplete_by_file, exclude=name_pending)\
+            .add('all_incomplete', callback_all_incomplete, tasks=tasks_incomplete_by_file)\
+            .ask().ret()
+
+        return tasks_incomplete
 
     # create testing run tasks for batch submission
     def _test_batch_generator(self):
@@ -90,6 +260,8 @@ class TaskGenerator:
             if not pyutils.is_job_finished(file_path=task.out):
                 tasks_incomplete.append(task)
 
+        # exclude tasks that is not complete by file but running in the cluster
+        tasks_incomplete = self._incomplete_job(tasks_incomplete_by_file=tasks_incomplete)
         # show detail files if wanted
         inp = input(f'#incomplete tasks: {len(tasks_incomplete)}. Show details (n will submit immediately)? [y/n] -> ')
         if inp == 'y':

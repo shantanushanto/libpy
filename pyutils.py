@@ -125,13 +125,15 @@ class ActionRouterClass:
         self._default_act_use = default_act_use  # default action to add in actions list
 
         # map input option to function
-        self.actions = {}  # contain (function, *args, **args)
+        self.actions = {}  # contain {'func': callback, 'args': (), 'kwargs': {}}
 
         # mapping short option to long option
         self._short_opt = {}  # short -> opt mapping
         self._opt_short = {}  # opt -> short mapping
 
         self._last_opt_choosen = []  # keep all track of the option choosen last
+
+        self.ask_ret = None  # last executed ask callback return value
 
         # initializing
         self._init()
@@ -145,8 +147,8 @@ class ActionRouterClass:
         def callback_continue(*args, **kwargs):
             pass
 
-        actions = {'abort': (callback_abort, (), {}),
-                   'continue': (callback_continue, (), {})}
+        actions = {'abort': {'func': callback_abort, 'args': (), 'kwargs': {}},
+                   'continue': {'func': callback_continue, 'args': (), 'kwargs': {}}}
         return actions
 
     # initialize first
@@ -211,9 +213,13 @@ class ActionRouterClass:
         if opt in self.actions:
             raise ValueError(f'{opt} is already taken for action option.')
         # register option to action
-        self.actions[opt] = (func, args, kwargs)
+        self.actions[opt] = {'func': func, 'args': args, 'kwargs': kwargs}
 
         return self
+
+    # return last callback return value
+    def ret(self):
+        return self.ask_ret
 
     # ask for input
     def ask(self):
@@ -234,9 +240,14 @@ class ActionRouterClass:
                 self._last_opt_choosen.append(opt)
 
             # get function and their arguments
-            callback, args, kwargs = self.actions[opt]
+            cb = self.actions[opt]
             # call callback function
-            callback(*args, **kwargs)
+            self.ask_ret = cb['func'](*cb['args'], **cb['kwargs'])
+
+            # if recall is returned in a dictionary by the function then it's a loop to ask the same question again
+            if type(self.ask_ret) == dict and 'type' in self.ask_ret and self.ask_ret['type'] == 'recall':
+                self.ask()
+
         except KeyError:
             raise ValueError('Invalid option.')
         return self
