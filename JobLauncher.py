@@ -444,6 +444,7 @@ class AtlasLauncher(SlurmLauncher):
 
         # parse free blocks from bash command
         def parse(lines):
+            lines = lines.split('\n')
             blocks = []
             block = {}
 
