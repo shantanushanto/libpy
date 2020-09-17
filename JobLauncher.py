@@ -84,7 +84,8 @@ class Slurm:
         
         # return job in a list. job is dict of {id, status, name}
         def parse(lines):
-            lines = filter(None, lines.split('\n'))
+            lines = [line for line in lines.split('\n') if len(line.strip())>0]
+
             jobs = []
             for line in lines:
                 u = line.split(' ')
@@ -94,10 +95,11 @@ class Slurm:
                        }
                 jobs.append(job)
             return jobs
-
-        cmd = ['squeue', f'-u {Slurm.user}', '--format="%i %T %j"', '--noheader']  # id, status, job_fullname
+        cmd = ['squeue', '-u', f'{Slurm.user}', '--format="%i %T %j"', '--noheader']  # id, status, job_fullname
         try:
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            if 'error' in result.stderr:
+                raise ValueError(f'SlurmError: {result.stderr}')
             jobs = parse(lines=result.stdout)
             return jobs
         except:
@@ -659,6 +661,8 @@ class AtlasLauncher(SlurmLauncher):
         try:
             # get free partition name counted by no_cpu needed
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            if 'error' in result.stderr:
+                raise ValueError(f'SlurmError: {result.stderr}')
             blocks = parse(lines=result.stdout)
             free_blocks = free_cpu_block(blocks=blocks, no_cpu=no_cpu)
             return free_blocks
