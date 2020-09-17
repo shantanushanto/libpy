@@ -650,7 +650,13 @@ class AtlasLauncher(SlurmLauncher):
 
         tasks, resource = self.pre_launch()
 
-        for task, partition_name in zip(tasks, itertools.cycle(resource)):
+        use_all = True
+        if use_all:
+            resource = resource + ['all' for _ in range(len(tasks) - len(resource))]
+        else:
+            resource = itertools.cycle(resource)
+
+        for task, partition_name in zip(tasks, resource):
             # getting header with job_name, out and err file name
             job_name = os.path.basename(task.out)  # take the output file name as job name as output file name is unique
             header = self.sbatch_header(job_name, task.out)
