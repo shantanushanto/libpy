@@ -118,7 +118,7 @@ class ActionRouterClass:
     # Copy files? [continue (c), abort (a), use_cluster (u), undo (un)] -> {input}
     def __init__(self, header: str, default_act_use=None):
         if default_act_use is None:
-            use_default_act = []
+            default_act_use = []
 
         self.header = header
 

@@ -81,10 +81,10 @@ class Slurm:
     # get job that is in the sbatch running or pending
     @staticmethod
     def get_job_in_sbatch():
-
+        
         # return job in a list. job is dict of {id, status, name}
         def parse(lines):
-            lines = lines.split('\n')
+            lines = filter(None, lines.split('\n'))
             jobs = []
             for line in lines:
                 u = line.split(' ')
@@ -192,6 +192,11 @@ class TaskGenerator:
         # Works as: finding jobs in cluster, depending on the options, regenerate incomplete task to submit
         # get job details running in cluster
         job_in_slurm = Slurm.get_job_in_sbatch()
+        
+        # no job in cluster. thus no need to ask for option
+        if len(job_in_slurm) == 0:
+            print('No jobs run in cluster')
+            return tasks_incomplete_by_file
 
         # calculate job number in different state
         no_job = {'incomplete_by_file': len(tasks_incomplete_by_file), 'running': 0, 'pending': 0, 'incomplete': 0}
@@ -232,10 +237,10 @@ class TaskGenerator:
 
         header = f'Job status [running: {no_job["running"]}, pending: {no_job["pending"]}, ' \
                  f'incomplete: {no_job["incomplete"]}]'
-
+        
         tasks_incomplete = pyutils.ActionRouter(header=header)\
-            .add('only_incomplete (incomplete)', callback_only_incomplete, tasks=tasks_incomplete_by_file, exclude=name_pending+name_running)\
-            .add('rebalance (incomplete+pending)', callback_rebalance, tasks=tasks_incomplete_by_file, exclude=name_pending)\
+            .add('only_incomplete', callback_only_incomplete, tasks=tasks_incomplete_by_file, exclude=name_pending+name_running)\
+            .add('rebalance [incom+pend]', callback_rebalance, tasks=tasks_incomplete_by_file, exclude=name_pending)\
             .add('all_incomplete', callback_all_incomplete, tasks=tasks_incomplete_by_file)\
             .ask().ret()
 
@@ -658,7 +663,7 @@ class AtlasLauncher(SlurmLauncher):
 
         # getting free resources
         free_resource = self._get_resource(no_cpu=self.no_cpu_per_task)
-        pyutils.ActionRouter(header=f'Resources need:available ({len(tasks)}) : ({len(free_resource)}).',
+        pyutils.ActionRouter(header=f'Resources need:available = {len(tasks)}:{len(free_resource)}.',
                              default_act_use=['abort', 'continue']).ask()
 
         for task, partition_name in zip(tasks, itertools.cycle(free_resource)):
