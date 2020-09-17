@@ -270,9 +270,10 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             if jobs_in_slurm is None:  # error to retreive jobs in slurm
                 jobs_in_slurm = []
 
-            # get pending/running task in slurm
+            # get pending/running task and id in slurm
             def get_slurm_task(tasks, jobs_in_cluster: List[dict]):
                 tasks_pending, tasks_running = [], []
+                tasks_pending_id, tasks_running_id = [], []
                 # find out task by status
                 for job in jobs_in_cluster:
                     # if task in slurm
@@ -280,13 +281,15 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
                     if task:
                         if job['status'] == 'RUNNING':
                             tasks_running.append(task)
+                            tasks_running_id.append(job['id'])
                         elif job['status'] == 'PENDING':
                             tasks_pending.append(task)
+                            tasks_pending_id.append(job['id'])
                         else:
                             raise ValueError('Unknown job status')
-                return tasks_pending, tasks_running
+                return tasks_pending, tasks_pending_id, tasks_running, tasks_running_id
 
-            tasks_pending, tasks_running = get_slurm_task(tasks, jobs_in_cluster=jobs_in_slurm)
+            tasks_pending, tasks_pending_id, tasks_running, tasks_running_id = get_slurm_task(tasks, jobs_in_cluster=jobs_in_slurm)
 
             # tasks incomplete by file write
             tasks_incomplete = []
@@ -302,13 +305,22 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             return {
                 'incomplete': tasks_incomplete,
                 'pending': tasks_pending,
-                'running': tasks_running
+                'pending_id': tasks_pending_id,
+                'running': tasks_running,
+                'running_id': tasks_running_id
             }
 
         ts = tasks_by_status(tasks=tasks)  # tasks_by_status
 
+        # handling incomplete + pending task
         def callback_ip(*args, **kwargs):
-            Slurm.scancel(opt='pending', prod=True)
+            # cancel all unless cancel_tasks_id is provided
+            key_cancel = 'cancel_tasks_id'
+            if  key_cancel in kwargs:
+                cancel_tasks_ids = kwargs[key_cancel]
+                Slurm.scancel(opt='id', jobids=cancel_tasks_ids, prod=True)
+            else:
+                Slurm.scancel(opt='pending', prod=True)
             return kwargs['tasks']
 
         def callback_all(*args, **kwargs):
@@ -316,13 +328,16 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             return kwargs['tasks']
 
         # when cancelling pending will only cancel on available resources
-        callback_ip_tasks = ts['incomplete'] + ts['pending'][0:(no_resource - len(ts['incomplete']))]
+        ip_cancel_tasks = ts['pending'][0:(no_resource - len(ts['incomplete']))]
+        ip_cancel_tasks_id = ts['pending_id'][0:(no_resource - len(ts['incomplete']))]# job id to cancel
+        callback_ip_tasks = ts['incomplete'] + ip_cancel_tasks
+
 
         tasks_submit = ActionRouter(
             header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {len(ts["incomplete"])}]') \
             .add('incomplete', lambda x: x, ts['incomplete'][:no_resource]) \
             .add('incomplete_all', lambda x: x, ts['incomplete']) \
-            .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks) \
+            .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks, cancel_tasks_id=ip_cancel_tasks_id) \
             .add('incomplete + pending_all', callback_ip, tasks=ts['incomplete'] + ts['pending']) \
             .add('all [incomplete + pending + running]', callback_all,
                  tasks=ts['incomplete'] + ts['pending'] + ts['running']) \
