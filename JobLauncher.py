@@ -45,7 +45,7 @@ class Slurm:
                     raise ValueError(f'SlurmError: {result.stderr}')
                 time.sleep(3)
             except:
-                pyutils.errprint(f"SlurmError: in scancel [cmd]", time_stamp=False)
+                pyutils.errprint(f"SlurmError: in scancel [{cmd}]", time_stamp=False)
                 return None
 
     @staticmethod
