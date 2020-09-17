@@ -13,7 +13,6 @@ from libpy.pyutils import ActionRouter
 
 
 class Slurm:
-
     user = 'shanto'
 
     @staticmethod
@@ -40,7 +39,8 @@ class Slurm:
         if prod:
             try:
                 command = cmd.split(' ')
-                result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+                result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                        universal_newlines=True)
                 if 'error' in result.stderr:
                     raise ValueError(f'SlurmError: {result.stderr}')
                 time.sleep(3)
@@ -82,16 +82,15 @@ class Slurm:
         def callback_cancel(*args, **kwargs):
             Slurm.scancel(opt='id', jobids=kwargs['ids'], prod=True)
 
-
-        pyutils.ActionRouter(header=f'Total job to be canceled: {len(ids)}')\
-            .add('show_details', callback_show_details, ids=ids, names=names)\
-            .add('cancel_direct', callback_cancel, ids=ids)\
+        pyutils.ActionRouter(header=f'Total job to be canceled: {len(ids)}') \
+            .add('show_details', callback_show_details, ids=ids, names=names) \
+            .add('cancel_direct', callback_cancel, ids=ids) \
             .ask()
 
     # get job that is in the sbatch running or pending
     @staticmethod
     def get_jobs_in_sbatch():
-        
+
         # return job in a list. job is dict of {id, status, name}
         def parse(lines):
             lines = [line.strip().strip('"') for line in lines.split('\n') if len(line.strip().strip('"')) > 0]
@@ -105,6 +104,7 @@ class Slurm:
                        }
                 jobs.append(job)
             return jobs
+
         cmd = ['squeue', '-u', f'{Slurm.user}', '--format="%i %T %j"', '--noheader']  # id, status, job_fullname
         try:
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -188,12 +188,14 @@ class Task:
     @staticmethod
     def cache_tasks(tasks, dir):
         # cache list of tasks.
-        task_cache_file = os.path.join(dir, f'.tasks_{time.time()}_n-task-{len(tasks)}_{time.ctime().replace(" ", "-")}.tasks')
+        task_cache_file = os.path.join(dir,
+                                       f'.tasks_{time.time()}_n-task-{len(tasks)}_{time.ctime().replace(" ", "-")}.tasks')
         with open(task_cache_file, 'wb') as file:
             dill.dump(tasks, file)
 
     @staticmethod
-    def incomplete_tasks_from_cache(dir, file_name=None, finish_tag=pyutils.tag_job_finished_successfully, verbose=True):
+    def incomplete_tasks_from_cache(dir, file_name=None, finish_tag=pyutils.tag_job_finished_successfully,
+                                    verbose=True):
         # given dir get recent submitted tasks which are not completed
         # dir: to look for all generated data and previously submitted tasks cache
         # file_name: if file_name is None use recent tasks cache file. To use otherwise only file_name (without full path, dir provide path) need to be passed.
@@ -254,7 +256,6 @@ class Task:
 
 # how to launch tasks [all, test, file]
 def tasks_launch_action_router(all_tasks, no_resource: int):
-
     # check file name to submit new jobs
     def callback_file(*args, **kwargs):
         # all task
@@ -315,22 +316,25 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             return kwargs['tasks']
 
         # when cancelling pending will only cancel on available resources
-        callback_ip_tasks = ts['incomplete'] + ts['pending'][0:(no_resource-len(ts['incomplete']))]
+        callback_ip_tasks = ts['incomplete'] + ts['pending'][0:(no_resource - len(ts['incomplete']))]
 
-        tasks_submit = ActionRouter(header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {len(ts["incomplete"])}]')\
-            .add('incomplete', lambda x: x, ts['incomplete'])\
-            .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks)\
-            .add('incomplete + pending_all', callback_ip, tasks=ts['incomplete']+ts['pending'])\
-            .add('all [incomplete + pending + running]', callback_all, tasks=ts['incomplete']+ts['pending']+ts['running'])\
+        tasks_submit = ActionRouter(
+            header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {len(ts["incomplete"])}]') \
+            .add('incomplete', lambda x: x, ts['incomplete'][:no_resource]) \
+            .add('incomplete_all', lambda x: x, ts['incomplete']) \
+            .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks) \
+            .add('incomplete + pending_all', callback_ip, tasks=ts['incomplete'] + ts['pending']) \
+            .add('all [incomplete + pending + running]', callback_all,
+                 tasks=ts['incomplete'] + ts['pending'] + ts['running']) \
             .ask().ret()
 
         return tasks_submit
 
     # Option: test, all, cache, file -> ')
-    tasks_submit = ActionRouter(header='What type of generator to run?')\
-        .add('all', lambda x: x, all_tasks)\
-        .add('test', lambda x: random.sample(x, min(len(x), 5)), all_tasks)\
-        .add('file', callback_file, tasks=all_tasks, no_resource=no_resource)\
+    tasks_submit = ActionRouter(header='What type of generator to run?') \
+        .add('all', lambda x: x, all_tasks) \
+        .add('test', lambda x: random.sample(x, min(len(x), 5)), all_tasks) \
+        .add('file', callback_file, tasks=all_tasks, no_resource=no_resource) \
         .ask().ret()
 
     return tasks_submit
@@ -372,7 +376,8 @@ def gen_job_name(kwargs, data_dir, batch_path_suffix=None):
 
 
 class JobLauncher:
-    def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd='', submission_check=False):
+    def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd='',
+                 submission_check=False):
         '''
         task_gen: is a function that returns list of Task objects. Task object has two parts.
             cmd (string): command that need to be executed. Generally it is the executable with full path. ex. /home/shanto/exe_search
@@ -385,12 +390,12 @@ class JobLauncher:
         submission_check: if submission check is true it'll print the submission job without actually submitting. It is for debug purpose
         '''
         self.task_gen = task_gen
-        
-        self.no_tasks = tasks_each_launch 
+
+        self.no_tasks = tasks_each_launch
         self.no_cpu_per_task = no_cpu_per_task
         self.time = time
         self.mem = mem
-        
+
         # temporary job directory to put jobs
         self.job_dir = f'{os.getcwd()}/.job'
         pyutils.mkdir_p(self.job_dir)
@@ -408,14 +413,13 @@ class JobLauncher:
         raise NotImplementedError
 
     def confirm_launch(self, tasks):
-
         # show details
         def callback_show(*args, **kwargs):
             for task in kwargs['tasks']:
                 print(task.out)
 
         # confirming task submission
-        ActionRouter(header=f'Total tasks: {len(tasks)}', default_act_use=['abort', 'continue'])\
+        ActionRouter(header=f'Total tasks: {len(tasks)}', default_act_use=['abort', 'continue']) \
             .add('show details', callback_show, tasks=tasks).ask()
 
 
@@ -423,7 +427,9 @@ class TamuLauncher(JobLauncher):
     '''
     This module uses tamulauncher with slurm batch submission.
     '''
-    def __init__(self, task_gen, acc_id = 122818929441, tasks_each_launch = 14, no_cpu_per_task = 1, ntasks_per_node = 14, time = '00:40:00', mem = '50000M', job_name = 'job', sbatch_extra_cmd = '', submission_check=False):
+
+    def __init__(self, task_gen, acc_id=122818929441, tasks_each_launch=14, no_cpu_per_task=1, ntasks_per_node=14,
+                 time='00:40:00', mem='50000M', job_name='job', sbatch_extra_cmd='', submission_check=False):
         '''
         :summary
         Let's assume we have in total 1000 tasks to submit. Each task needs 40 minutes time, 100M of memory and 2 cpu. Now assume we want to submit 100 task in each job. Thus, for each job submission
@@ -442,51 +448,51 @@ class TamuLauncher(JobLauncher):
 
         see https://support.ceci-hpc.be/doc/_contents/SubmittingJobs/SlurmFAQ.html (Q05) for better understanding of allocation
         '''
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd, submission_check=submission_check)
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd,
+                         submission_check=submission_check)
 
-        self.job_name = job_name 
-        self.acc_id = acc_id 
+        self.job_name = job_name
+        self.acc_id = acc_id
         self.ntasks_per_node = ntasks_per_node
 
-        self.task_file_name = 'tasks' # file that contain all commands to run the exe
+        self.task_file_name = 'tasks'  # file that contain all commands to run the exe
 
     def sbatch_header(self, job_name='job'):
-        if job_name == 'job': job_name=self.job_name  # if nothing is passed use default job_name
+        if job_name == 'job': job_name = self.job_name  # if nothing is passed use default job_name
         header = (
             f'#!/bin/bash\n'
-            f'#SBATCH --export=NONE\n'               
-            f'#SBATCH --get-user-env=L\n'            
+            f'#SBATCH --export=NONE\n'
+            f'#SBATCH --get-user-env=L\n'
             f'#SBATCH --job-name={job_name}\n'
             f'#SBATCH --output={self.job_dir}/{self.job_name}.%j\n'
-            f'#SBATCH --time={self.time}\n'            
-            f'#SBATCH --ntasks={self.no_tasks}\n'       
+            f'#SBATCH --time={self.time}\n'
+            f'#SBATCH --ntasks={self.no_tasks}\n'
             f'#SBATCH --ntasks-per-node={self.ntasks_per_node}\n'
             f'#SBATCH --cpus-per-task={self.no_cpu_per_task}\n'
             f'#SBATCH --mem={self.mem}\n'
             f'#SBATCH --account={self.acc_id}\n'
-            )
-        return header 
-
+        )
+        return header
 
     def sbatch_script(self, header, file):
         script = (
             f'{header}\n'
             f'tamulauncher {file}\n'
-            )
-        return script 
-    
+        )
+        return script
+
     def _get_tasks_file(self, tasks):
-        
+
         tasks_job = ''
         for task in tasks:
             tasks_job += f'{task.cmd} 2> {task.out}.err 1> {task.out}.out\n'
-        
+
         unique_file_name = f'{self.task_file_name}_{uuid.uuid4()}'
         tasks_file = os.path.join(self.job_dir, unique_file_name)
         with open(tasks_file, 'w') as fh:
             fh.writelines(tasks_job)
-        return tasks_file 
-    
+        return tasks_file
+
     def check_launcher_cache(self):
         tamulauncher_cache = '.tamulauncher-log'
         pyutils.dir_choice(tamulauncher_cache)
@@ -497,18 +503,18 @@ class TamuLauncher(JobLauncher):
         self.check_launcher_cache()
 
         # number of submitted jobs will be
-        total_jobs = int(len(tasks)/self.no_tasks)
-        if len(tasks)%self.no_tasks > 0: total_jobs += 1
+        total_jobs = int(len(tasks) / self.no_tasks)
+        if len(tasks) % self.no_tasks > 0: total_jobs += 1
         print(f'Total number of sbatch job: {total_jobs}')
 
         for job_id, i in enumerate(range(0, len(tasks), self.no_tasks)):
-            tasks_job = self._get_tasks_file(tasks[i:i+self.no_tasks])
+            tasks_job = self._get_tasks_file(tasks[i:i + self.no_tasks])
 
             # construct header
             header = self.sbatch_header(job_name=f'{self.job_name}_{job_id}') + self.sbatch_extra_cmd
             # construct script
             script = self.sbatch_script(header=header, file=tasks_job)
-            
+
             u_job_file_name = f'{self.job_file_name}_{job_id}_{uuid.uuid4()}'
             job_file = os.path.join(self.job_dir, u_job_file_name)
             with open(job_file, 'w') as fh:
@@ -522,7 +528,9 @@ class SlurmLauncher(JobLauncher):
     '''
     This module uses slurm batch submission.
     '''
-    def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd='', submission_check=False):
+
+    def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd='',
+                 submission_check=False):
         '''
         Caution: time and mem doesn't have any effect here.
 
@@ -530,7 +538,8 @@ class SlurmLauncher(JobLauncher):
         task_gen is a function that return list of Task
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
         '''
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd, submission_check=submission_check)
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd,
+                         submission_check=submission_check)
 
     def sbatch_header(self, job_name, out):
         header = (
@@ -548,7 +557,7 @@ class SlurmLauncher(JobLauncher):
             f'{header}\n'
             f'{self.sbatch_extra_cmd}\n'
             f'{cmd}\n'
-            )
+        )
         return script
 
     def submit_job(self, task, job_script):
@@ -589,7 +598,9 @@ class PAlabLauncher(SlurmLauncher):
     '''
     This module uses slurm batch submission.
     '''
-    def __init__(self, task_gen, tasks_each_launch = 1, no_cpu_per_task = 1, time = '9999:40:00', mem = '2000M', sbatch_extra_cmd = '', no_exclude_node = 1, submission_check=False):
+
+    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M',
+                 sbatch_extra_cmd='', no_exclude_node=1, submission_check=False):
         '''
         Caution: time and mem doesn't have any effect here.
 
@@ -599,7 +610,8 @@ class PAlabLauncher(SlurmLauncher):
         '''
         # adding exclude node command
         self.no_exclude_node = no_exclude_node
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd,
+                         submission_check=submission_check)
 
     def _cluster_specific_header(self, node_name, no_exclude_node):
         # header to exclude node
@@ -607,20 +619,20 @@ class PAlabLauncher(SlurmLauncher):
         if no_exclude_node > 0:
             exclude = f'01-0{no_exclude_node}'
             header = (
-                    f'#SBATCH --exclude={node_name}[{exclude}]\n'
-                    )
+                f'#SBATCH --exclude={node_name}[{exclude}]\n'
+            )
         return header
 
-    
     def launch(self):
         # generating all tasks
         tasks, resource = self.pre_launch()
 
         for task in tasks:
             # getting header with job_name, out and err file name
-            job_name = os.path.basename(task.out) # take the output file name as job name as output file name is unique
+            job_name = os.path.basename(task.out)  # take the output file name as job name as output file name is unique
 
-            extra_cluster_specific_cmd = self._cluster_specific_header(node_name='node', no_exclude_node=self.no_exclude_node)
+            extra_cluster_specific_cmd = self._cluster_specific_header(node_name='node',
+                                                                       no_exclude_node=self.no_exclude_node)
             header = self.sbatch_header(job_name, task.out) + extra_cluster_specific_cmd
             # command to execute
             cmd = task.cmd
@@ -637,7 +649,8 @@ class AtlasLauncher(SlurmLauncher):
     This module uses slurm batch submission.
     '''
 
-    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M', sbatch_extra_cmd='', submission_check=False,):
+    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M',
+                 sbatch_extra_cmd='', submission_check=False, ):
         '''
         Caution: time and mem doesn't have any effect here.
 
@@ -645,8 +658,8 @@ class AtlasLauncher(SlurmLauncher):
         task_gen is a function that return list of Task
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
         '''
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
-
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd,
+                         submission_check=submission_check)
 
     def _add_partition(self, header, partition_name):
         header += f'#SBATCH --partition={partition_name}\n'
@@ -680,7 +693,8 @@ class AtlasLauncher(SlurmLauncher):
 
 class TerraGPULauncher(PAlabLauncher):
 
-    def __init__(self, task_gen, acc_id=12281892943, tasks_each_launch = 1, no_cpu_per_task = 10, no_gpu=1, time = '24:00:00', mem = '100000M', sbatch_extra_cmd = '', no_exclude_node = 0, submission_check=False):
+    def __init__(self, task_gen, acc_id=12281892943, tasks_each_launch=1, no_cpu_per_task=10, no_gpu=1, time='24:00:00',
+                 mem='100000M', sbatch_extra_cmd='', no_exclude_node=0, submission_check=False):
         '''
         Make sure all the directories are already exist
         task_gen is a function that return list of Task
@@ -688,7 +702,8 @@ class TerraGPULauncher(PAlabLauncher):
         '''
         self.acc_id = acc_id
         self.no_gpu = no_gpu
-        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, no_exclude_node=no_exclude_node, submission_check=submission_check)
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd,
+                         no_exclude_node=no_exclude_node, submission_check=submission_check)
 
     def _cluster_specific_header(self, node_name, no_exclude_node):
         # header to use gpu
@@ -707,26 +722,30 @@ class TerraGPULauncher(PAlabLauncher):
 
 
 # cluster launch job
-def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1, submission_check=False, sbatch_extra_cmd='source activate rl\n',
+def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1,
+               submission_check=False, sbatch_extra_cmd='source activate rl\n',
                acc_id=122818929441, tasks_each_launch=14):
     # choose cluster
     if cluster == 'palab':
-        server = PAlabLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, no_exclude_node=no_exlude_node, submission_check=submission_check)
+        server = PAlabLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu,
+                               no_exclude_node=no_exlude_node, submission_check=submission_check)
     elif cluster == 'atlas':
-        server = AtlasLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, submission_check=submission_check)
+        server = AtlasLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu,
+                               submission_check=submission_check)
     elif cluster == 'tamulauncher':
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModuleCPU.sh")}\n' \
                            f'unset I_MPI_PMI_LIBRARY'
         # don't use tasks_each_launch in tamulauncher. It has a bug that doesn't follow tasks-per-node hence request large SUs
-        server = TamuLauncher(callback_batch_gen, job_name=job_name, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time, submission_check=submission_check, tasks_each_launch=tasks_each_launch)
+        server = TamuLauncher(callback_batch_gen, job_name=job_name, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd,
+                              time=time, submission_check=submission_check, tasks_each_launch=tasks_each_launch)
     elif cluster == 'terragpu':
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
-        server = TerraGPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time, submission_check=submission_check)
+        server = TerraGPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time,
+                                  submission_check=submission_check)
     else:
         raise ValueError('Invalid cluster name!!')
 
     # launch jobs
     server.launch()
-
