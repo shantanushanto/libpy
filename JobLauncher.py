@@ -417,6 +417,7 @@ class JobLauncher:
         def callback_show(*args, **kwargs):
             for task in kwargs['tasks']:
                 print(task.out)
+            return {"type": "recall"}
 
         # confirming task submission
         ActionRouter(header=f'Total tasks: {len(tasks)}', default_act_use=['abort', 'continue']) \
