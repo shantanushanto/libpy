@@ -4,6 +4,8 @@ import time
 import dill
 import sys
 import random
+import itertools
+import subprocess
 
 from libpy import pyutils
 
@@ -59,6 +61,7 @@ class Task():
         incomplete = get_incomplete_task(submitted_tasks)
         if verbose: sys.stderr.write(f'Total incomplte task: {len(incomplete)}\n')
         return incomplete
+
 
 class TaskGenerator:
 
@@ -127,6 +130,7 @@ class TaskGenerator:
         Task.cache_tasks(callback_batch_gen(), self.data_dir)
         return callback_batch_gen
 
+
 # given kwargs dict generate job name and arguments for cmd
 def gen_job_name(kwargs, data_dir, batch_path_suffix=None):
     # data_dir: dir to save data. data_dir as added with batch_path
@@ -162,7 +166,7 @@ def gen_job_name(kwargs, data_dir, batch_path_suffix=None):
     return job_name, cargs
 
 
-class JobLauncher():
+class JobLauncher:
     def __init__(self, task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd='', submission_check=False):
         '''
         task_gen: is a function that returns list of Task objects. Task object has two parts.
@@ -197,6 +201,7 @@ class JobLauncher():
 
     def launch(self):
         raise NotImplementedError
+
 
 class TamuLauncher(JobLauncher):
     '''
@@ -296,6 +301,7 @@ class TamuLauncher(JobLauncher):
             if not self.submission_check:
                 os.system(f'sbatch {job_file}')
 
+
 class SlurmLauncher(JobLauncher):
     '''
     This module uses slurm batch submission.
@@ -341,6 +347,9 @@ class SlurmLauncher(JobLauncher):
         print(f'sbatch {job_file}')
         if not self.submission_check:
             os.system(f'sbatch {job_file}')
+
+    def launch(self):
+        raise NotImplementedError
 
 
 class PAlabLauncher(SlurmLauncher):
@@ -395,7 +404,7 @@ class AtlasLauncher(SlurmLauncher):
     This module uses slurm batch submission.
     '''
 
-    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M', sbatch_extra_cmd='', submission_check=False, atlas_ratio=4):
+    def __init__(self, task_gen, tasks_each_launch=1, no_cpu_per_task=1, time='9999:40:00', mem='2000M', sbatch_extra_cmd='', submission_check=False,):
         '''
         Caution: time and mem doesn't have any effect here.
 
@@ -404,9 +413,12 @@ class AtlasLauncher(SlurmLauncher):
         no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
         '''
         super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
-        self.atlas_ratio = atlas_ratio
 
-    def _add_partition(self, idx, header):
+    def _add_partition(self, header, partition_name):
+        header += f'#SBATCH --partition={partition_name}\n'
+        return header
+
+        '''
         # atlas has two partitions. Distribute as all: 3, 12-core: 1
         if self.atlas_ratio == -1:  # use all core
             pass
@@ -415,30 +427,72 @@ class AtlasLauncher(SlurmLauncher):
         elif (idx+1) % self.atlas_ratio == 0:
             header += '#SBATCH --partition=12-core\n'
         return header
+        '''
+
+    # get free resources by partition name in a list
+    def _get_resource(self, no_cpu):
+
+        # given no_cpu to run each job it returns partition to submit.
+        def free_cpu_block(blocks, no_cpu):
+            free_block = []
+            for block in blocks:
+                cpu_avail = int((block['cpu_tot'] - block['cpu_alloc']) / no_cpu)
+                for _ in range(cpu_avail):
+                    free_block.append(block['partition'])
+
+            return free_block
+
+        # parse free blocks from bash command
+        def parse(lines):
+            blocks = []
+            block = {}
+
+            for no_line, line in enumerate(lines):
+                line = line.lstrip()
+                # add new block
+                if line.startswith("NodeName=") and len(block) > 0:
+                    blocks.append(block)
+                    block = {}
+
+                # find total and allocated cpu
+                if line.startswith("CPUAlloc="):
+                    words = line.split(' ')
+                    block['cpu_alloc'] = int(words[0].split('=')[1])
+                    block['cpu_tot'] = int(words[1].split('=')[1])
+
+                # find partition name
+                if line.startswith("Partitions="):
+                    words = line.split('=')
+                    block['partition'] = words[1].strip()
+
+            return blocks
+
+        command = ["scontrol", 'show', 'node']
+        try:
+            # get free partition name counted by no_cpu needed
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            blocks = parse(lines=result.stdout)
+            free_blocks = free_cpu_block(blocks=blocks, no_cpu=no_cpu)
+            return free_blocks
+        except:
+            print("Error executing scontrol")
+            return ['all', '12-core', 'bigmo']
 
     def launch(self):
-
-        # confirming if only single partition is selected
-        if self.atlas_ratio == -1:
-            partition = 'all'
-        elif self.atlas_ratio == -2:
-            partition = '12-core'
-        else:
-            partition = 'mix'
-
-        opt = input(f'Submitting jobs to patition: {partition}. [y/n] -> ')
-        if opt != 'y':
-            exit(0)
 
         # generating all tasks
         tasks = self.task_gen()
 
-        for idx, task in enumerate(tasks):
+        # getting free resources
+        free_resource = self._get_resource(no_cpu=self.no_cpu_per_task)
+        print(f'Resources need:available ({len(tasks)}) : ({len(free_resource)})')
+
+        for task, partition_name in zip(tasks, itertools.cycle(free_resource)):
             # getting header with job_name, out and err file name
             job_name = os.path.basename(task.out)  # take the output file name as job name as output file name is unique
             header = self.sbatch_header(job_name, task.out)
             # add partition with header
-            header = self._add_partition(idx=idx, header=header)
+            header = self._add_partition(header=header, partition_name=partition_name)
             # command to execute
             cmd = task.cmd
 
@@ -447,6 +501,7 @@ class AtlasLauncher(SlurmLauncher):
 
             # submitting job
             self.submit_job(task=task, job_script=job_script)
+
 
 class TerraGPULauncher(PAlabLauncher):
 
@@ -477,13 +532,13 @@ class TerraGPULauncher(PAlabLauncher):
 
 
 # cluster launch job
-def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1, atlas_ratio=4, submission_check=False, sbatch_extra_cmd='source activate rl\n',
+def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1, submission_check=False, sbatch_extra_cmd='source activate rl\n',
                acc_id=122818929441, tasks_each_launch=14):
     # choose cluster
     if cluster == 'palab':
         server = PAlabLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, no_exclude_node=no_exlude_node, submission_check=submission_check)
     elif cluster == 'atlas':
-        server = AtlasLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, atlas_ratio=atlas_ratio, submission_check=submission_check)
+        server = AtlasLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu, submission_check=submission_check)
     elif cluster == 'tamulauncher':
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModuleCPU.sh")}\n' \

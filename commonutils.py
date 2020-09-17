@@ -53,6 +53,7 @@ def json_merge_and_get_data(dir_path, merged_file='all.final', recreate=True, me
     return data
 
 
+# transfer file between clusters given full path in both side
 def scp(letters: list, dir_copy: bool = False, check_exist: bool = True, verbose: bool = False,
         prod: bool = False) -> None:
     # given a list transfer file between cluster
@@ -115,7 +116,7 @@ def path_from_project_root(path, project_name, add_project_dir=False, discard_la
     return path_starting_project
 
 
-# get full local path as remote path. Determined by project root and project prefix is appended
+# get full local path as given remote path. Determined by project root and project prefix is appended
 def path_local_as_remote(project_root, path, discard_last=False):
     project_name = os.path.basename(project_root)
     local_path = os.path.join(project_root,
