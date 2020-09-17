@@ -101,7 +101,7 @@ class Slurm:
             jobs = parse(lines=result.stdout)
             return jobs
         except:
-            print(f"Error executing command: {cmd}")
+            pyutils.errprint(f"SlurmError: in getting Job id [{' '.join(cmd)}]", time_stamp=False)
             return None
 
 
@@ -194,7 +194,7 @@ class TaskGenerator:
         job_in_slurm = Slurm.get_job_in_sbatch()
         
         # no job in cluster. thus no need to ask for option
-        if len(job_in_slurm) == 0:
+        if job_in_slurm ==  None or len(job_in_slurm) == 0:
             print('No jobs run in cluster')
             return tasks_incomplete_by_file
 
@@ -258,7 +258,7 @@ class TaskGenerator:
         return tasks
 
     # check file name to submit new jobs
-    def _file_check_batch_generator(self):
+    def _file_check_batch_generator(self, **kwargs):
         tasks = self.batch_generator()
         tasks_incomplete = []
         for task in tasks:
@@ -267,6 +267,11 @@ class TaskGenerator:
 
         # exclude tasks that is not complete by file but running in the cluster
         tasks_incomplete = self._incomplete_job(tasks_incomplete_by_file=tasks_incomplete)
+
+        # only need the tasks
+        if 'only_ret_tasks' in kwargs and kwargs['only_ret_tasks'] == True:
+            return tasks_incomplete
+
         # show detail files if wanted
         inp = input(f'#incomplete tasks: {len(tasks_incomplete)}. Show details (n will submit immediately)? [y/n] -> ')
         if inp == 'y':
@@ -278,8 +283,13 @@ class TaskGenerator:
                 exit(0)
         return tasks_incomplete
 
-    def _all_batch_generator(self):
+    def _all_batch_generator(self, **kwargs):
         tasks_incomplete = self.batch_generator()
+
+        # only need the tasks
+        if 'only_ret_tasks' in kwargs and kwargs['only_ret_tasks'] == True:
+            return tasks_incomplete
+
         inp = input(f'#Total tasks: {len(tasks_incomplete)}. Submit?  [y/n] -> ')
         if inp != 'y':
             exit(0)
@@ -304,7 +314,7 @@ class TaskGenerator:
 
         callback_batch_gen = self._callback_batch_gen_options()
         # creating task cache
-        Task.cache_tasks(callback_batch_gen(), self.data_dir)
+        Task.cache_tasks(callback_batch_gen(only_ret_tasks=True), self.data_dir)
         return callback_batch_gen
 
 
@@ -645,15 +655,15 @@ class AtlasLauncher(SlurmLauncher):
 
             return blocks
 
-        command = ["scontrol", 'show', 'node']
+        cmd = ["scontrol", 'show', 'node']
         try:
             # get free partition name counted by no_cpu needed
-            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             blocks = parse(lines=result.stdout)
             free_blocks = free_cpu_block(blocks=blocks, no_cpu=no_cpu)
             return free_blocks
         except:
-            print("Error executing scontrol")
+            pyutils.errprint(f"SlurmError: in getting cluster available resourcess [{' '.join(cmd)}]", time_stamp=False)
             return ['all', '12-core', 'bigmo']
 
     def launch(self):
@@ -663,7 +673,7 @@ class AtlasLauncher(SlurmLauncher):
 
         # getting free resources
         free_resource = self._get_resource(no_cpu=self.no_cpu_per_task)
-        pyutils.ActionRouter(header=f'Resources need:available = {len(tasks)}:{len(free_resource)}.',
+        pyutils.ActionRouter(header=f'Resources need: {len(tasks)} available: {len(free_resource)}',
                              default_act_use=['abort', 'continue']).ask()
 
         for task, partition_name in zip(tasks, itertools.cycle(free_resource)):
