@@ -6,9 +6,11 @@ import sys
 import random
 import itertools
 import subprocess
-from typing import List
+from typing import List, Union
 
 from libpy import pyutils, commonutils
+from libpy.pyutils import ActionRouter
+
 
 class Slurm:
 
@@ -36,7 +38,14 @@ class Slurm:
             raise ValueError('Invalid type')
 
         if prod:
-            os.system(cmd)
+            try:
+                command = cmd.split(' ')
+                result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+                if 'error' in result.stderr:
+                    raise ValueError(f'SlurmError: {result.stderr}')
+            except:
+                pyutils.errprint(f"SlurmError: in scancel [cmd]", time_stamp=False)
+                return None
 
     @staticmethod
     # job cancel by string/regular expression name
@@ -80,7 +89,7 @@ class Slurm:
 
     # get job that is in the sbatch running or pending
     @staticmethod
-    def get_job_in_sbatch():
+    def get_jobs_in_sbatch():
         
         # return job in a list. job is dict of {id, status, name}
         def parse(lines):
@@ -105,6 +114,65 @@ class Slurm:
         except:
             pyutils.errprint(f"SlurmError: in getting Job id [{' '.join(cmd)}]", time_stamp=False)
             return None
+
+    @staticmethod
+    # get available resource
+    def get_resource(no_cpu, opt='free'):
+        # opt: all, free
+
+        # given no_cpu to run each job it returns partition to submit.
+        def free_cpu_block(blocks, no_cpu):
+            free_block = []
+            for block in blocks:
+                cpu_avail = int((block['cpu_tot'] - block['cpu_alloc']) / no_cpu)
+                for _ in range(cpu_avail):
+                    free_block.append(block['partition'])
+
+            return free_block
+
+        # parse free blocks from bash command
+        def parse(lines):
+            lines = [line.strip().strip('"') for line in lines.split('\n') if len(line.strip().strip('"')) > 0]
+            blocks = []
+            block = {}
+
+            for no_line, line in enumerate(lines):
+                line = line.lstrip()
+                # add new block
+                if line.startswith("NodeName=") and len(block) > 0:
+                    blocks.append(block)
+                    block = {}
+
+                # find total and allocated cpu
+                if line.startswith("CPUAlloc="):
+                    words = line.split(' ')
+                    block['cpu_alloc'] = int(words[0].split('=')[1])
+                    block['cpu_tot'] = int(words[1].split('=')[1])
+
+                # find partition name
+                if line.startswith("Partitions="):
+                    words = line.split('=')
+                    block['partition'] = words[1].strip()
+
+            return blocks
+
+        cmd = ["scontrol", 'show', 'node']
+        try:
+            # get free partition name counted by no_cpu needed
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            if 'error' in result.stderr:
+                raise ValueError(f'SlurmError: {result.stderr}')
+            blocks = parse(lines=result.stdout)
+            if opt == 'all':
+                return blocks
+            elif opt == 'free':
+                free_blocks = free_cpu_block(blocks=blocks, no_cpu=no_cpu)
+                return free_blocks
+            else:
+                raise ValueError('Invalid option')
+        except:
+            pyutils.errprint(f"SlurmError: in getting cluster available resourcess [{' '.join(cmd)}]", time_stamp=False)
+            return []
 
 
 class Task:
@@ -165,11 +233,12 @@ class Task:
 
     @staticmethod
     # Given list of tasks and name return if any of the task match the name
-    def find(tasks: List['Task'], name: str) -> bool:
+    def find(tasks: List['Task'], name: str) -> Union[None, 'Task']:
+        # ret_task: return the matched task too
         for task in tasks:
             if task.file_name() == name:
-                return True
-        return False
+                return Task
+        return None
 
     @staticmethod
     # Given list of tasks and list of names to exclude return excluded task
@@ -182,143 +251,83 @@ class Task:
         return ret
 
 
-class TaskGenerator:
-
-    def __init__(self, batch_generator, data_dir):
-        self.batch_generator = batch_generator
-        self.data_dir = data_dir
-
-        self.tasks = None  # tasks set for caching
-
-    def _incomplete_job(self, tasks_incomplete_by_file: List[Task], verbose=True) -> List[Task]:
-        # Works as: finding jobs in cluster, depending on the options, regenerate incomplete task to submit
-        # get job details running in cluster
-        job_in_slurm = Slurm.get_job_in_sbatch()
-        
-        # no job in cluster. thus no need to ask for option
-        if job_in_slurm ==  None or len(job_in_slurm) == 0:
-            print('No jobs run in cluster')
-            return tasks_incomplete_by_file
-
-        # calculate job number in different state
-        no_job = {'incomplete_by_file': len(tasks_incomplete_by_file), 'running': 0, 'pending': 0, 'incomplete': 0}
-
-        # job name by their status
-        name_pending, name_running = [], []
-
-        # calculate total running and pending jobs and store their name
-        for job in job_in_slurm:
-            if job['status'] == 'PENDING':
-                no_job['pending'] += 1
-                name_pending.append(job['name'])
-            elif job['status'] == 'RUNNING':
-                no_job['running'] += 1
-                name_running.append(job['name'])
-
-        # number of incomplete job
-        no_job['incomplete'] = max(0, (no_job['incomplete_by_file'] - no_job['running'] - no_job['pending']))
-
-        # incomplete_tasks_by_file - pending - running
-        def callback_only_incomplete(*args, **kwargs):
-            tasks = Task.exclude(kwargs['tasks'], kwargs['exclude'])
-            return tasks
-
-        # incomplete_tasks_by_file - running. cancel pending and return incomplete including (pending jobs)
-        def callback_rebalance(*args, **kwargs):
-            # cancel pending jobs and subtract only running jobs from incomplete
-            Slurm.scancel(opt='pending', prod=True)
-            tasks = Task.exclude(kwargs['tasks'], kwargs['exclude'])
-            return tasks
-
-        # cancel all and return all tasks_incomplete_by_file
-        def callback_all_incomplete(*args, **kwargs):
-            # cancel all jobs and rerun from file
-            Slurm.scancel(opt='all', prod=True)
-            return kwargs['tasks']
-            pass
-
-        header = f'Job status [running: {no_job["running"]}, pending: {no_job["pending"]}, ' \
-                 f'incomplete: {no_job["incomplete"]}]'
-
-        tasks_incomplete = pyutils.ActionRouter(header=header)\
-            .add('only_incomplete', callback_only_incomplete, tasks=tasks_incomplete_by_file, exclude=name_pending+name_running)\
-            .add('rebalance [incom+pend]', callback_rebalance, tasks=tasks_incomplete_by_file, exclude=name_pending)\
-            .add('all_incomplete', callback_all_incomplete, tasks=tasks_incomplete_by_file)\
-            .ask().ret()
-
-        return tasks_incomplete
-
-    # create testing run tasks for batch submission
-    def _test_batch_generator(self):
-        tasks = self.batch_generator()
-        test_task = random.sample(tasks, min(len(tasks), 5))
-        return test_task
-
-    # submit jobs from recent cache
-    def _incomplete_batch_generator(self):
-        tasks = Task.incomplete_tasks_from_cache(self.data_dir)
-        return tasks
+# how to launch tasks [all, test, file]
+def tasks_launch_action_router(all_tasks):
 
     # check file name to submit new jobs
-    def _file_check_batch_generator(self, **kwargs):
-        tasks = self.batch_generator()
-        tasks_incomplete = []
-        for task in tasks:
-            if not pyutils.is_job_finished(file_path=task.out):
-                tasks_incomplete.append(task)
+    def callback_file(*args, **kwargs):
+        # all task
+        tasks = kwargs['tasks']
 
-        # exclude tasks that is not complete by file but running in the cluster
-        tasks_incomplete = self._incomplete_job(tasks_incomplete_by_file=tasks_incomplete)
+        # get tasks by status type
+        def tasks_by_status(tasks) -> dict:
+            # get job details running in cluster
+            jobs_in_slurm = Slurm.get_jobs_in_sbatch()
 
-        # only need the tasks
-        if 'only_ret_tasks' in kwargs and kwargs['only_ret_tasks'] == True:
-            return tasks_incomplete
+            if jobs_in_slurm is None:  # error to retreive jobs in slurm
+                jobs_in_slurm = []
 
-        # show detail files if wanted
-        inp = input(f'#incomplete tasks: {len(tasks_incomplete)}. Show details (n will submit immediately)? [y/n] -> ')
-        if inp == 'y':
-            for task in tasks_incomplete:
-                print(task.out)
-            # grant permission to submit
-            inp = input('Continue to submit? [y/n] -> ')
-            if inp != 'y':
-                exit(0)
-        return tasks_incomplete
+            # get pending/running task in slurm
+            def get_slurm_task(tasks, jobs_in_cluster: List[dict]):
+                tasks_pending, tasks_running = [], []
+                # find out task by status
+                for job in jobs_in_cluster:
+                    # if task in slurm
+                    task = Task.find(tasks=tasks, name=job['name'])
+                    if task:
+                        if job['status'] == 'running':
+                            tasks_running.append(task)
+                        elif job['status'] == 'pending':
+                            tasks_pending.append(task)
+                        else:
+                            raise ValueError('Unknown job status')
+                return tasks_pending, tasks_running
 
-    def _all_batch_generator(self, **kwargs):
-        tasks_incomplete = self.batch_generator()
+            tasks_pending, tasks_running = get_slurm_task(tasks, jobs_in_cluster=jobs_in_slurm)
 
-        # only need the tasks
-        if 'only_ret_tasks' in kwargs and kwargs['only_ret_tasks'] == True:
-            return tasks_incomplete
+            # tasks incomplete by file write
+            tasks_incomplete = []
+            for task in tasks:
+                if not pyutils.is_job_finished(
+                        file_path=task.out):  # and not task_in_cluster(task=task, jobs_in_cluster=jobs_in_slurm):
+                    tasks_incomplete.append(task)
 
-        inp = input(f'#Total tasks: {len(tasks_incomplete)}. Submit?  [y/n] -> ')
-        if inp != 'y':
-            exit(0)
-        return tasks_incomplete
+            tasks_incomplete = list(set(tasks_incomplete).difference(
+                set(tasks_running).union(set(tasks_pending))
+            ))
 
-    # select batchgen type
-    def _callback_batch_gen_options(self):
-        batch_gen_type = input('What type of generator to run? Option: test, all, cache, file -> ')
-        if batch_gen_type == 'test':
-            return self._test_batch_generator
-        elif batch_gen_type == 'all':
-            return self._all_batch_generator
-        elif batch_gen_type == 'cache':
-            return self._incomplete_batch_generator
-        elif batch_gen_type == 'file':
-            return self._file_check_batch_generator
-        else:
-            print('Wrong input!')
-            return self._callback_batch_gen_options()
+            return {
+                'incomplete': tasks_incomplete,
+                'pending': tasks_pending,
+                'running': tasks_running
+            }
 
-    def get_callback_batch_gen(self):
+        ts = tasks_by_status(tasks=tasks)  # tasks_by_status
 
-        callback_batch_gen = self._callback_batch_gen_options()
-        # creating task cache
-        # disabling task cache creation
-        # Task.cache_tasks(callback_batch_gen(only_ret_tasks=True), self.data_dir)
-        return callback_batch_gen
+        def callback_ip(*args, **kwargs):
+            Slurm.scancel(opt='pending', prod=True)
+            return kwargs['tasks']
+
+        def callback_all(*args, **kwargs):
+            Slurm.scancel(opt='all', prod=True)
+            return kwargs['tasks']
+
+        tasks_submit = ActionRouter(header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {len(ts["incomplete"])}]')\
+            .add('incomplete', lambda x: x, ts['incomplete'])\
+            .add('incomplete + pending', callback_ip, tasks=ts['incomplete']+ts['pending'])\
+            .add('all [incomplete + pending + running]', callback_all, tasks=ts['incomplete']+ts['pending']+ts['running'])\
+            .ask().ret()
+
+        return tasks_submit
+
+    # Option: test, all, cache, file -> ')
+    tasks_submit = ActionRouter(header='What type of generator to run?')\
+        .add('all', lambda x: x, all_tasks)\
+        .add('test', lambda x: random.sample(x, min(len(x), 5)), all_tasks)\
+        .add('file', callback_file, tasks=all_tasks)\
+        .ask().ret()
+
+    return tasks_submit
 
 
 # given kwargs dict generate job name and arguments for cmd
@@ -391,6 +400,17 @@ class JobLauncher:
 
     def launch(self):
         raise NotImplementedError
+
+    def confirm_launch(self, tasks):
+
+        # show details
+        def callback_show(*args, **kwargs):
+            for task in kwargs['tasks']:
+                print(task.out)
+
+        # confirming task submission
+        ActionRouter(header=f'Total tasks: {len(tasks)}', default_act_use=['abort', 'continue'])\
+            .add('show details', callback_show, tasks=tasks).ask()
 
 
 class TamuLauncher(JobLauncher):
@@ -541,6 +561,23 @@ class SlurmLauncher(JobLauncher):
     def launch(self):
         raise NotImplementedError
 
+    # check resource and sort out tasks to be submitted
+    def pre_launch(self):
+        # getting free resources
+        free_resource = Slurm.get_resource(no_cpu=self.no_cpu_per_task)
+        print(f'Resources available: {len(free_resource)}')
+
+        # generating all tasks
+        tasks = self.task_gen()
+        tasks = tasks_launch_action_router(tasks)
+
+        self.confirm_launch(tasks=tasks)
+
+        if len(free_resource) == 0:
+            free_resource = ['all']
+
+        return tasks, free_resource
+
 
 class PAlabLauncher(SlurmLauncher):
     '''
@@ -571,7 +608,7 @@ class PAlabLauncher(SlurmLauncher):
     
     def launch(self):
         # generating all tasks
-        tasks = self.task_gen()
+        tasks, resource = self.pre_launch()
 
         for task in tasks:
             # getting header with job_name, out and err file name
@@ -604,91 +641,16 @@ class AtlasLauncher(SlurmLauncher):
         '''
         super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd, submission_check=submission_check)
 
+
     def _add_partition(self, header, partition_name):
         header += f'#SBATCH --partition={partition_name}\n'
         return header
 
-        '''
-        # atlas has two partitions. Distribute as all: 3, 12-core: 1
-        if self.atlas_ratio == -1:  # use all core
-            pass
-        elif self.atlas_ratio == -2:  # use all 12-core node
-            header += '#SBATCH --partition=12-core\n'
-        elif (idx+1) % self.atlas_ratio == 0:
-            header += '#SBATCH --partition=12-core\n'
-        return header
-        '''
-
-    # get free resources by partition name in a list
-    def _get_resource(self, no_cpu):
-
-        # given no_cpu to run each job it returns partition to submit.
-        def free_cpu_block(blocks, no_cpu):
-            free_block = []
-            for block in blocks:
-                cpu_avail = int((block['cpu_tot'] - block['cpu_alloc']) / no_cpu)
-                for _ in range(cpu_avail):
-                    free_block.append(block['partition'])
-
-            return free_block
-
-        # parse free blocks from bash command
-        def parse(lines):
-            lines = [line.strip().strip('"') for line in lines.split('\n') if len(line.strip().strip('"')) > 0]
-            blocks = []
-            block = {}
-
-            for no_line, line in enumerate(lines):
-                line = line.lstrip()
-                # add new block
-                if line.startswith("NodeName=") and len(block) > 0:
-                    blocks.append(block)
-                    block = {}
-
-                # find total and allocated cpu
-                if line.startswith("CPUAlloc="):
-                    words = line.split(' ')
-                    block['cpu_alloc'] = int(words[0].split('=')[1])
-                    block['cpu_tot'] = int(words[1].split('=')[1])
-
-                # find partition name
-                if line.startswith("Partitions="):
-                    words = line.split('=')
-                    block['partition'] = words[1].strip()
-
-            return blocks
-
-        cmd = ["scontrol", 'show', 'node']
-        try:
-            # get free partition name counted by no_cpu needed
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-            if 'error' in result.stderr:
-                raise ValueError(f'SlurmError: {result.stderr}')
-            blocks = parse(lines=result.stdout)
-            free_blocks = free_cpu_block(blocks=blocks, no_cpu=no_cpu)
-            return free_blocks
-        except:
-            pyutils.errprint(f"SlurmError: in getting cluster available resourcess [{' '.join(cmd)}]", time_stamp=False)
-            return ['all', '12-core', 'bigmo']
-
     def launch(self):
 
-        # getting free resources
-        free_resource = self._get_resource(no_cpu=self.no_cpu_per_task)
-        print(f'Resources available: {len(free_resource)}')
+        tasks, resource = self.pre_launch()
 
-        # generating all tasks
-        tasks = self.task_gen()
-
-        # pyutils.ActionRouter(header=f'Resources need: {len(tasks)} available: {len(free_resource)}', default_act_use=['abort', 'continue']).ask()
-
-        use_all = True
-        if use_all:
-            free_resource = free_resource + ['all' for _ in range(len(tasks)-len(free_resource))]
-        else:
-            free_resource = itertools.cycle(free_resource)
-
-        for task, partition_name in zip(tasks, free_resource):
+        for task, partition_name in zip(tasks, itertools.cycle(resource)):
             # getting header with job_name, out and err file name
             job_name = os.path.basename(task.out)  # take the output file name as job name as output file name is unique
             header = self.sbatch_header(job_name, task.out)
