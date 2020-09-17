@@ -320,6 +320,7 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
         tasks_submit = ActionRouter(header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {len(ts["incomplete"])}]')\
             .add('incomplete', lambda x: x, ts['incomplete'])\
             .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks)\
+            .add('incomplete + pending_all', callback_ip, tasks=ts['incomplete']+ts['pending'])\
             .add('all [incomplete + pending + running]', callback_all, tasks=ts['incomplete']+ts['pending']+ts['running'])\
             .ask().ret()
 
