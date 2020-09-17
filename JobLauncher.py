@@ -84,7 +84,7 @@ class Slurm:
         
         # return job in a list. job is dict of {id, status, name}
         def parse(lines):
-            lines = [line for line in lines.split('\n') if len(line.strip())>0]
+            lines = [line.strip().strip('"') for line in lines.split('\n') if len(line.strip().strip('"')) > 0]
 
             jobs = []
             for line in lines:
@@ -633,7 +633,7 @@ class AtlasLauncher(SlurmLauncher):
 
         # parse free blocks from bash command
         def parse(lines):
-            lines = lines.split('\n')
+            lines = [line.strip().strip('"') for line in lines.split('\n') if len(line.strip().strip('"')) > 0]
             blocks = []
             block = {}
 
