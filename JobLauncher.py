@@ -7,7 +7,7 @@ import random
 import itertools
 import subprocess
 
-from libpy import pyutils
+from libpy import pyutils, commonutils
 
 
 class Task():
@@ -485,7 +485,8 @@ class AtlasLauncher(SlurmLauncher):
 
         # getting free resources
         free_resource = self._get_resource(no_cpu=self.no_cpu_per_task)
-        print(f'Resources need:available ({len(tasks)}) : ({len(free_resource)})')
+        pyutils.ActionRouter(header=f'Resources need:available ({len(tasks)}) : ({len(free_resource)}).',
+                             default_act_use=['abort', 'continue']).ask()
 
         for task, partition_name in zip(tasks, itertools.cycle(free_resource)):
             # getting header with job_name, out and err file name
