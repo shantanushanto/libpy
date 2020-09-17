@@ -237,7 +237,7 @@ class Task:
         # ret_task: return the matched task too
         for task in tasks:
             if task.file_name() == name:
-                return Task
+                return task
         return None
 
     @staticmethod
