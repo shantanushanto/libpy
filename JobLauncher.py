@@ -239,7 +239,7 @@ class TaskGenerator:
 
         header = f'Job status [running: {no_job["running"]}, pending: {no_job["pending"]}, ' \
                  f'incomplete: {no_job["incomplete"]}]'
-        
+
         tasks_incomplete = pyutils.ActionRouter(header=header)\
             .add('only_incomplete', callback_only_incomplete, tasks=tasks_incomplete_by_file, exclude=name_pending+name_running)\
             .add('rebalance [incom+pend]', callback_rebalance, tasks=tasks_incomplete_by_file, exclude=name_pending)\
@@ -680,7 +680,13 @@ class AtlasLauncher(SlurmLauncher):
         pyutils.ActionRouter(header=f'Resources need: {len(tasks)} available: {len(free_resource)}',
                              default_act_use=['abort', 'continue']).ask()
 
-        for task, partition_name in zip(tasks, itertools.cycle(free_resource)):
+        use_all = True
+        if use_all:
+            free_resource = free_resource + ['all' for _ in range(len(tasks)-len(free_resource))]
+        else:
+            free_resource = itertools.cycle(free_resource)
+
+        for task, partition_name in zip(tasks, free_resource):
             # getting header with job_name, out and err file name
             job_name = os.path.basename(task.out)  # take the output file name as job name as output file name is unique
             header = self.sbatch_header(job_name, task.out)
