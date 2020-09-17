@@ -43,6 +43,7 @@ class Slurm:
                 result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
                 if 'error' in result.stderr:
                     raise ValueError(f'SlurmError: {result.stderr}')
+                time.sleep(3)
             except:
                 pyutils.errprint(f"SlurmError: in scancel [cmd]", time_stamp=False)
                 return None
@@ -252,12 +253,13 @@ class Task:
 
 
 # how to launch tasks [all, test, file]
-def tasks_launch_action_router(all_tasks):
+def tasks_launch_action_router(all_tasks, no_resource: int):
 
     # check file name to submit new jobs
     def callback_file(*args, **kwargs):
         # all task
         tasks = kwargs['tasks']
+        no_resource = kwargs['no_resource']
 
         # get tasks by status type
         def tasks_by_status(tasks) -> dict:
@@ -312,9 +314,12 @@ def tasks_launch_action_router(all_tasks):
             Slurm.scancel(opt='all', prod=True)
             return kwargs['tasks']
 
+        # when cancelling pending will only cancel on available resources
+        callback_ip_tasks = ts['incomplete'] + ts['pending'][0:(no_resource-len(ts['incomplete']))]
+
         tasks_submit = ActionRouter(header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {len(ts["incomplete"])}]')\
             .add('incomplete', lambda x: x, ts['incomplete'])\
-            .add('incomplete + pending', callback_ip, tasks=ts['incomplete']+ts['pending'])\
+            .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks)\
             .add('all [incomplete + pending + running]', callback_all, tasks=ts['incomplete']+ts['pending']+ts['running'])\
             .ask().ret()
 
@@ -324,7 +329,7 @@ def tasks_launch_action_router(all_tasks):
     tasks_submit = ActionRouter(header='What type of generator to run?')\
         .add('all', lambda x: x, all_tasks)\
         .add('test', lambda x: random.sample(x, min(len(x), 5)), all_tasks)\
-        .add('file', callback_file, tasks=all_tasks)\
+        .add('file', callback_file, tasks=all_tasks, no_resource=no_resource)\
         .ask().ret()
 
     return tasks_submit
@@ -569,7 +574,7 @@ class SlurmLauncher(JobLauncher):
 
         # generating all tasks
         tasks = self.task_gen()
-        tasks = tasks_launch_action_router(tasks)
+        tasks = tasks_launch_action_router(tasks, len(free_resource))
 
         self.confirm_launch(tasks=tasks)
 
