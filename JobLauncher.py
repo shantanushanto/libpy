@@ -216,7 +216,7 @@ class TaskGenerator:
                 name_running.append(job['name'])
 
         # number of incomplete job
-        no_job['incomplete'] = no_job['incomplete_by_file'] - no_job['running']
+        no_job['incomplete'] = max(0, (no_job['incomplete_by_file'] - no_job['running'] - no_job['pending']))
 
         # incomplete_tasks_by_file - pending - running
         def callback_only_incomplete(*args, **kwargs):
@@ -316,7 +316,8 @@ class TaskGenerator:
 
         callback_batch_gen = self._callback_batch_gen_options()
         # creating task cache
-        Task.cache_tasks(callback_batch_gen(only_ret_tasks=True), self.data_dir)
+        # disabling task cache creation
+        # Task.cache_tasks(callback_batch_gen(only_ret_tasks=True), self.data_dir)
         return callback_batch_gen
 
 
@@ -672,11 +673,13 @@ class AtlasLauncher(SlurmLauncher):
 
     def launch(self):
 
+        # getting free resources
+        free_resource = self._get_resource(no_cpu=self.no_cpu_per_task)
+        # print(f'Resources available: {len(free_resource)}')
+
         # generating all tasks
         tasks = self.task_gen()
 
-        # getting free resources
-        free_resource = self._get_resource(no_cpu=self.no_cpu_per_task)
         pyutils.ActionRouter(header=f'Resources need: {len(tasks)} available: {len(free_resource)}',
                              default_act_use=['abort', 'continue']).ask()
 
