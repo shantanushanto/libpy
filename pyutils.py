@@ -6,6 +6,7 @@ import sys
 import dill
 import re
 from typing import List
+from collections import defaultdict
 
 from libpy import commonutils
 
@@ -335,11 +336,15 @@ def print_job_finished():
     sys.stderr.write(f'{time.ctime()}\n{tag_job_finished_successfully}\n')
 
 
-def is_job_finished(file_path, finish_tag=tag_job_finished_successfully):
+# get incomplete task by finish tag
+def is_job_finished(file_path, finish_tag=tag_job_finished_successfully, by='any'):
     # file_path: raw full file path without any extension
     # finish_tag: default finish tag
+    # by = any: True of False any of the criteria fulfilled. cat: return code by category not found
     err_path = f'{file_path}.err'
     out_path = f'{file_path}.out'
+
+    cat_code = 'file_not_exist'  # successfull, file_not_exist, error_in_file, err_file_empty, out_not_exist,
 
     # check for finish tag in err
     if os.path.isfile(err_path):  # check if file exist but finish tag doesn't exist
@@ -347,10 +352,61 @@ def is_job_finished(file_path, finish_tag=tag_job_finished_successfully):
             # check finish tag
             if finish_tag in f.read():
                 # out file exists and size is > 0
-                if os.path.isfile(out_path) and os.stat(out_path).st_size > 0:
-                    return True
+                if os.path.isfile(out_path):
+                    if os.stat(out_path).st_size > 0:
+                        cat_code = 'successfull'
+                    else:
+                        cat_code = 'err_file_empty'
+                else:
+                    cat_code = 'out_not_exist'
+            else:
+                if 'error' in f.read():
+                    cat_code = 'error_in_file'
+    else:
+        cat_code = 'file_not_exist'
 
-    return False
+    found = True if cat_code == 'successfull' else False
+    if by == 'any':
+        return found
+    elif by == 'cat':
+        return {
+            'found': found,
+            'cat': cat_code
+        }
+    else:
+        raise ValueError('Invalid by option')
+
+
+# get incomplete tasks by finish tag
+def incomplete_tasks(tasks, by='all'):
+    # by: all(return list): total incomplete tasks,
+    #     cat(return dict): separate tasks by error code,
+    #     both(return dict): return both all and cat
+    #     status(return dict): return count status of each category in a dict
+
+    tasks_incomplete = []
+    tasks_incomplete_by_status = defaultdict(list)
+    for task in tasks:
+        status = is_job_finished(file_path=task.out, by='cat')
+        if not status['found']:
+            tasks_incomplete.append(task)
+            tasks_incomplete_by_status[status['cat']].append(task)
+
+    if by == 'all':
+        return tasks_incomplete
+    elif by == 'cat':
+        return tasks_incomplete_by_status
+    elif by == 'both':
+        tasks_incomplete_by_status['all'] = tasks_incomplete
+        return tasks_incomplete_by_status
+    elif by == 'status':
+        stat = dict()
+        stat['all'] = len(tasks_incomplete)
+        for k, v in tasks_incomplete_by_status.items():
+            stat[k] = len(v)
+        return stat
+    else:
+        raise ValueError('Invalid by option')
 
 
 def print_log(log):

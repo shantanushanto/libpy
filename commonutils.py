@@ -70,7 +70,8 @@ def scp(letters: list, dir_copy: bool = False, check_exist: bool = True, verbose
 
         pyutils.ActionRouter(f'Total {len(files_to_overwrite)}/{len(letters)} files to overwrite?', default_act_use=['abort', 'continue']).ask()
 
-
+    if not prod:
+        print('scp testing...')
     # transfer files
     for letter in tqdm(letters, desc='Transferring file (scp)'):
         from_path = letter[0]
@@ -80,7 +81,7 @@ def scp(letters: list, dir_copy: bool = False, check_exist: bool = True, verbose
 
         cmd = f'sshpass -p $tamu_pss scp -q {extra_cmd} {from_path} {to_path}'
         if verbose:
-            print(f'scp from remote to local.\n{cmd}\n')
+            print(f'{cmd}')
 
         if prod:
             os.system(cmd)

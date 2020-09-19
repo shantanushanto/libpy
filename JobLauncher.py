@@ -7,6 +7,7 @@ import random
 import itertools
 import subprocess
 from typing import List, Union
+from tqdm import tqdm
 
 from libpy import pyutils, commonutils
 from libpy.pyutils import ActionRouter
@@ -14,6 +15,28 @@ from libpy.pyutils import ActionRouter
 
 class Slurm:
     user = 'shanto'
+
+    @staticmethod
+    # sbatch file
+    def sbatch(file, prod=False, verbose=False):
+        if not prod:
+            pyutils.errprint('Testing sbatch..', time_stamp=False)
+            return False
+
+        try:
+            cmd = f'sbatch {file}'
+            command = cmd.split(' ')
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    universal_newlines=True)
+            if verbose and 'error' in result.stderr:
+                pyutils.errprint(f'SlurmError: {result.stderr}')
+                return False
+
+            return True
+        except:
+            if verbose:
+                pyutils.errprint(f"SlurmError: in sbatch [{cmd}]", time_stamp=False)
+            return False
 
     @staticmethod
     # cancel by status or job_id. job id either in int or string. For multiple job id must be string comma seperated
@@ -27,12 +50,18 @@ class Slurm:
         elif opt == 'id':
             # scancel your_job-id1, your_job-id2, your_jobiid3
             if jobids == None:
-                pass
+                raise ValueError('scancel id is passed as opt but jobids is None')
             elif type(jobids) == int or type(jobids) == str:
                 cmd = f'{scancel_pre} {jobids}'
             elif type(jobids) == list:
-                p = ", ".join(jobids)
-                cmd = f'{scancel_pre} {p}'
+                if len(jobids) > 0:
+                    p = " ".join(str(id) for id in jobids)
+                    cmd = f'{scancel_pre} {p}'
+                else:
+                    pyutils.errprint('No job id to cancel', time_stamp=False)
+                    return
+            else:
+                raise ValueError('Invalid jobids type')
         else:
             raise ValueError('Invalid type')
 
@@ -98,7 +127,7 @@ class Slurm:
             jobs = []
             for line in lines:
                 u = line.split(' ')
-                job = {'id': u[0],
+                job = {'id': int(u[0]),
                        'status': u[1],
                        'name': u[2]
                        }
@@ -292,18 +321,18 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             tasks_pending, tasks_pending_id, tasks_running, tasks_running_id = get_slurm_task(tasks, jobs_in_cluster=jobs_in_slurm)
 
             # tasks incomplete by file write
-            tasks_incomplete = []
-            for task in tasks:
-                if not pyutils.is_job_finished(
-                        file_path=task.out):  # and not task_in_cluster(task=task, jobs_in_cluster=jobs_in_slurm):
-                    tasks_incomplete.append(task)
+            tasks_incomplete = pyutils.incomplete_tasks(tasks=tasks, by='all')
 
             tasks_incomplete = list(set(tasks_incomplete).difference(
                 set(tasks_running).union(set(tasks_pending))
             ))
 
+            # get incomplete task status that is not running or pending
+            tasks_incomplete_status = pyutils.incomplete_tasks(tasks=tasks_incomplete, by='status')  # get incomplete task
+
             return {
                 'incomplete': tasks_incomplete,
+                'incomplete_status': tasks_incomplete_status,
                 'pending': tasks_pending,
                 'pending_id': tasks_pending_id,
                 'running': tasks_running,
@@ -328,13 +357,15 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             return kwargs['tasks']
 
         # when cancelling pending will only cancel on available resources
-        ip_cancel_tasks = ts['pending'][0:(no_resource - len(ts['incomplete']))]
-        ip_cancel_tasks_id = ts['pending_id'][0:(no_resource - len(ts['incomplete']))]# job id to cancel
+        no_pending_cancel = max(0, (no_resource - len(ts['incomplete'])))
+        ip_cancel_tasks = ts['pending'][-no_pending_cancel:]
+        ip_cancel_tasks_id = ts['pending_id'][-no_pending_cancel:]# job id to cancel
         callback_ip_tasks = ts['incomplete'] + ip_cancel_tasks
 
+        # print out status based on incomplete task
 
         tasks_submit = ActionRouter(
-            header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {len(ts["incomplete"])}]') \
+            header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {ts["incomplete_status"]}]') \
             .add('incomplete', lambda x: x, ts['incomplete'][:no_resource]) \
             .add('incomplete_all', lambda x: x, ts['incomplete']) \
             .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks, cancel_tasks_id=ip_cancel_tasks_id) \
@@ -434,9 +465,11 @@ class JobLauncher:
                 print(task.out)
             return {"type": "recall"}
 
-        # confirming task submission
-        ActionRouter(header=f'Total tasks: {len(tasks)}', default_act_use=['abort', 'continue']) \
-            .add('show details', callback_show, tasks=tasks).ask()
+        # confirming task submission and return
+        ActionRouter(header=f'Total tasks: {len(tasks)}', default_act_use=['abort', 'continue'])\
+            .add('show details', callback_show, tasks=tasks)\
+            .add('show details (top 5)', callback_show, tasks=tasks[:5])\
+            .ask()
 
 
 class TamuLauncher(JobLauncher):
@@ -537,7 +570,8 @@ class TamuLauncher(JobLauncher):
                 fh.writelines(script)
             print(f'sbatch {job_file}')
             if not self.submission_check:
-                os.system(f'sbatch {job_file}')
+                success = Slurm.sbatch(file=job_file, prod=True, verbose=True)
+                return success
 
 
 class SlurmLauncher(JobLauncher):
@@ -576,7 +610,7 @@ class SlurmLauncher(JobLauncher):
         )
         return script
 
-    def submit_job(self, task, job_script):
+    def submit_job(self, task, job_script, verbose=False):
         # creating job file with unique file name
         out_file_name = os.path.basename(task.out)
         u_job_file_name = f'{self.job_file_name}_{out_file_name}_{uuid.uuid4()}'
@@ -585,9 +619,28 @@ class SlurmLauncher(JobLauncher):
             fh.write(job_script)
 
         # run the script
-        print(f'sbatch {job_file}')
+        if verbose:
+            print(f'sbatch {job_file}')
         if not self.submission_check:
-            os.system(f'sbatch {job_file}')
+            success = Slurm.sbatch(file=job_file, verbose=verbose, prod=True)
+            return success
+
+    # submit all jobs
+    def submit_all_jobs(self, jobs, verbose=1):
+        # jobs contain: [task, job_script]
+        # verbose: 0: no verbose 1: print only failed 2: details
+
+        failed = []
+        for task, job_script in tqdm(jobs, desc='Slurm job submission'):
+            success = self.submit_job(task=task, job_script=job_script, verbose=(verbose==2))
+            if not success:
+                failed.append((task, job_script))
+
+        if verbose != 0:
+            if len(failed) > 0:
+                pyutils.errprint(f'Total filed job submission: {len(failed)}/{len(jobs)}', time_stamp=False)
+
+
 
     def launch(self):
         raise NotImplementedError
@@ -606,8 +659,11 @@ class SlurmLauncher(JobLauncher):
 
         if len(free_resource) == 0:
             free_resource = ['all']
-
-        return tasks, free_resource
+        
+        return {
+            'tasks': tasks,
+            'free_resource': free_resource
+        }
 
 
 class PAlabLauncher(SlurmLauncher):
@@ -641,8 +697,11 @@ class PAlabLauncher(SlurmLauncher):
 
     def launch(self):
         # generating all tasks
-        tasks, resource = self.pre_launch()
+        launch_var = self.pre_launch()
+        tasks, resource = launch_var['tasks'], launch_var['free_resource']
 
+        # process jobs to submit
+        jobs_to_submit = []
         for task in tasks:
             # getting header with job_name, out and err file name
             job_name = os.path.basename(task.out)  # take the output file name as job name as output file name is unique
@@ -656,8 +715,11 @@ class PAlabLauncher(SlurmLauncher):
             # make script with header and command
             job_script = self.sbatch_script(header, cmd)
 
-            # submitting job
-            self.submit_job(task=task, job_script=job_script)
+            # jobs to submit
+            jobs_to_submit.append((task, job_script))
+
+        # submit jobs
+        self.submit_all_jobs(jobs=jobs_to_submit, verbose=1)
 
 
 class AtlasLauncher(SlurmLauncher):
@@ -683,7 +745,8 @@ class AtlasLauncher(SlurmLauncher):
 
     def launch(self):
 
-        tasks, resource = self.pre_launch()
+        launch_var = self.pre_launch()
+        tasks, resource = launch_var['tasks'], launch_var['free_resource']
 
         use_all = True
         if use_all:
@@ -691,6 +754,8 @@ class AtlasLauncher(SlurmLauncher):
         else:
             resource = itertools.cycle(resource)
 
+        # process jobs to submit
+        jobs_to_submit = []
         for task, partition_name in zip(tasks, resource):
             # getting header with job_name, out and err file name
             job_name = os.path.basename(task.out)  # take the output file name as job name as output file name is unique
@@ -703,8 +768,11 @@ class AtlasLauncher(SlurmLauncher):
             # make script with header and command
             job_script = self.sbatch_script(header=header, cmd=cmd)
 
-            # submitting job
-            self.submit_job(task=task, job_script=job_script)
+            # jobs to submit
+            jobs_to_submit.append((task, job_script))
+
+        # submit jobs
+        self.submit_all_jobs(jobs=jobs_to_submit, verbose=1)
 
 
 class TerraGPULauncher(PAlabLauncher):
