@@ -26,12 +26,11 @@ class Slurm:
         try:
             cmd = f'sbatch {file}'
             command = cmd.split(' ')
-            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    universal_newlines=True)
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             if verbose and 'error' in result.stderr:
                 pyutils.errprint(f'SlurmError: {result.stderr}')
                 return False
-
+            time.sleep(0.01)
             return True
         except:
             if verbose:
@@ -209,6 +208,9 @@ class Task:
     def __init__(self, cmd, out):
         self.cmd = cmd
         self.out = out  # full path of out file
+
+    def __str__(self):
+        return f'{self.cmd} -> {self.out}'
 
     # get only file name
     def file_name(self):

@@ -17,7 +17,7 @@ def readme(dir, header=None, desc=None):
         f.write(f'Date created: {time.ctime()} -> {desc}\n\n')
 
 
-# read json file. Each line contains single json output
+# read json file (e.g. reading all.final). Each line contains single json output.
 def json_merge_read_single(path):
     res = []
     with open(path, 'r') as file:
