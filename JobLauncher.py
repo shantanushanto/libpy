@@ -331,6 +331,7 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             # tasks incomplete by file write
             tasks_incomplete = pyutils.incomplete_tasks(tasks=tasks, by='all')
 
+            # taking task that is not running or pending
             tasks_incomplete = list(set(tasks_incomplete).difference(
                 set(tasks_running).union(set(tasks_pending))
             ))
@@ -339,8 +340,8 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             tasks_incomplete_status = pyutils.incomplete_tasks(tasks=tasks_incomplete, by='status')  # get incomplete task
 
             return {
-                'incomplete': tasks_incomplete,
-                'incomplete_status': tasks_incomplete_status,
+                'incomplete': tasks_incomplete,  # by checking file and not running or pending in slurm
+                'incomplete_status': tasks_incomplete_status,  # incomplete task status by different error
                 'pending': tasks_pending,
                 'pending_id': tasks_pending_id,
                 'running': tasks_running,
@@ -365,9 +366,11 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             return kwargs['tasks']
 
         # when cancelling pending will only cancel on available resources
-        no_pending_cancel = max(0, (no_resource - len(ts['incomplete'])))
+        # taking at least 1 pending cancel to avoid [-0:]-> return all bug
+        no_pending_cancel = max(1, (no_resource - len(ts['incomplete'])))
         ip_cancel_tasks = ts['pending'][-no_pending_cancel:]
-        ip_cancel_tasks_id = ts['pending_id'][-no_pending_cancel:]# job id to cancel
+        ip_cancel_tasks_id = ts['pending_id'][-no_pending_cancel:]  # job id to cancel
+        # first cancel ip_cancel_tasks from slurm then resubmit them again on available resource
         callback_ip_tasks = ts['incomplete'] + ip_cancel_tasks
 
         # print out status based on incomplete task
