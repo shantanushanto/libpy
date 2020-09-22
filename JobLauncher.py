@@ -117,10 +117,11 @@ class Slurm:
 
     # get job that is in the sbatch running or pending
     @staticmethod
-    def get_jobs_in_sbatch():
+    def get_jobs_in_sbatch(by_status=None):
+        # by_status: PENDING, RUNNING
 
         # return job in a list. job is dict of {id, status, name}
-        def parse(lines):
+        def parse(lines, by_status):
             lines = [line.strip().strip('"') for line in lines.split('\n') if len(line.strip().strip('"')) > 0]
 
             jobs = []
@@ -130,7 +131,12 @@ class Slurm:
                        'status': u[1],
                        'name': u[2]
                        }
-                jobs.append(job)
+                if by_status:
+                    if by_status == job['status']:
+                        jobs.append(job)
+                else:
+                    jobs.append(job)
+
             return jobs
 
         cmd = ['squeue', '-u', f'{Slurm.user}', '--format="%i %T %j"', '--noheader']  # id, status, job_fullname
@@ -138,7 +144,7 @@ class Slurm:
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             if 'error' in result.stderr:
                 raise ValueError(f'SlurmError: {result.stderr}')
-            jobs = parse(lines=result.stdout)
+            jobs = parse(lines=result.stdout, by_status=by_status)
             return jobs
         except:
             pyutils.errprint(f"SlurmError: in getting Job id [{' '.join(cmd)}]", time_stamp=False)
