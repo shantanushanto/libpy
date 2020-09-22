@@ -13,6 +13,8 @@ from libpy import commonutils
 
 def mkdir_p(dir, verbose=False, backup_existing=False, if_contains=None):
     '''make a directory (dir) if it doesn't exist'''
+    # todo: add recursive directory creation
+    # dir: given full path only create last name as directory
     # if_contains: backup_existing True if_contains is a list. If there is any file/directory in the
     #              first (not recursive) pass match with if_contains then backup
     if not os.path.exists(dir):  # directory does not exist
