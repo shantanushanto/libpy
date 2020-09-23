@@ -8,6 +8,8 @@ import itertools
 import subprocess
 from typing import List, Union
 from tqdm import tqdm
+from collections import defaultdict
+
 
 from libpy import pyutils, commonutils
 from libpy.pyutils import ActionRouter
@@ -290,6 +292,42 @@ class Task:
 
         return ret
 
+    @staticmethod
+    # get incomplete tasks by finish tag
+    def incomplete_tasks(tasks, by='all', error_code=None):
+        # by: all(return list): total incomplete tasks,
+        #     cat(return dict[list]): separate list of tasks by error code, (error code comes from is_job_finished)
+        #           error_code: if error code is defined get that category tasks
+        #     both(return dict): return both all and cat
+        #     status(return dict): return count status of each category in a dict
+
+        tasks_incomplete = []
+        tasks_incomplete_by_status = defaultdict(list)
+        for task in tasks:
+            status = pyutils.is_job_finished(file_path=task.out, by='cat')
+            if not status['found']:
+                tasks_incomplete.append(task)
+                tasks_incomplete_by_status[status['cat']].append(task)
+
+        if by == 'all':
+            return tasks_incomplete
+        elif by == 'cat':
+            if error_code is None:
+                return tasks_incomplete_by_status
+            else:
+                return tasks_incomplete_by_status.get(error_code, [])
+        elif by == 'both':
+            tasks_incomplete_by_status['all'] = tasks_incomplete
+            return tasks_incomplete_by_status
+        elif by == 'status':
+            stat = dict()
+            stat['all'] = len(tasks_incomplete)
+            for k, v in tasks_incomplete_by_status.items():
+                stat[k] = len(v)
+            return stat
+        else:
+            raise ValueError('Invalid by option')
+
 
 # how to launch tasks [all, test, file]
 def tasks_launch_action_router(all_tasks, no_resource: int):
@@ -329,15 +367,19 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             tasks_pending, tasks_pending_id, tasks_running, tasks_running_id = get_slurm_task(tasks, jobs_in_cluster=jobs_in_slurm)
 
             # tasks incomplete by file write
-            tasks_incomplete = pyutils.incomplete_tasks(tasks=tasks, by='all')
+            tasks_incomplete = Task.incomplete_tasks(tasks=tasks, by='all')
 
             # taking task that is not running or pending
             tasks_incomplete = list(set(tasks_incomplete).difference(
                 set(tasks_running).union(set(tasks_pending))
             ))
 
+            # get tasks only by file not exist
+            tasks_incomplete_by_filenotexist = Task.incomplete_tasks(tasks=tasks_incomplete, by='cat', error_code='file_not_exist')
+
             # get incomplete task status that is not running or pending
-            tasks_incomplete_status = pyutils.incomplete_tasks(tasks=tasks_incomplete, by='status')  # get incomplete task
+            tasks_incomplete_status = Task.incomplete_tasks(tasks=tasks_incomplete, by='status')  # get incomplete task
+
 
             return {
                 'incomplete': tasks_incomplete,  # by checking file and not running or pending in slurm
@@ -373,7 +415,6 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
         # first cancel ip_cancel_tasks from slurm then resubmit them again on available resource
         callback_ip_tasks = ts['incomplete'] + ip_cancel_tasks
 
-        # print out status based on incomplete task
 
         tasks_submit = ActionRouter(
             header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {ts["incomplete_status"]}]') \

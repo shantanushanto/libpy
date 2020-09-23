@@ -380,38 +380,6 @@ def is_job_finished(file_path, finish_tag=tag_job_finished_successfully, by='any
         raise ValueError('Invalid by option')
 
 
-# get incomplete tasks by finish tag
-def incomplete_tasks(tasks, by='all'):
-    # by: all(return list): total incomplete tasks,
-    #     cat(return dict): separate tasks by error code,
-    #     both(return dict): return both all and cat
-    #     status(return dict): return count status of each category in a dict
-
-    tasks_incomplete = []
-    tasks_incomplete_by_status = defaultdict(list)
-    for task in tasks:
-        status = is_job_finished(file_path=task.out, by='cat')
-        if not status['found']:
-            tasks_incomplete.append(task)
-            tasks_incomplete_by_status[status['cat']].append(task)
-
-    if by == 'all':
-        return tasks_incomplete
-    elif by == 'cat':
-        return tasks_incomplete_by_status
-    elif by == 'both':
-        tasks_incomplete_by_status['all'] = tasks_incomplete
-        return tasks_incomplete_by_status
-    elif by == 'status':
-        stat = dict()
-        stat['all'] = len(tasks_incomplete)
-        for k, v in tasks_incomplete_by_status.items():
-            stat[k] = len(v)
-        return stat
-    else:
-        raise ValueError('Invalid by option')
-
-
 def print_log(log):
     # print final log dictionary with termination message
     js = json.dumps(dict(log))
