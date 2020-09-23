@@ -352,7 +352,8 @@ def is_job_finished(file_path, finish_tag=tag_job_finished_successfully, by='any
     if os.path.isfile(err_path):  # check if file exist but finish tag doesn't exist
         with open(err_path, 'r') as f:
             # check finish tag
-            if finish_tag in f.read():
+            file_str = f.read()
+            if finish_tag in file_str:
                 # out file exists and size is > 0
                 if os.path.isfile(out_path):
                     if os.stat(out_path).st_size > 0:
@@ -362,7 +363,7 @@ def is_job_finished(file_path, finish_tag=tag_job_finished_successfully, by='any
                 else:
                     cat_code = 'out_not_exist'
             else:
-                if 'error' in f.read().lower():
+                if 'error' in file_str.lower():
                     cat_code = 'error_in_file'
     else:
         cat_code = 'file_not_exist'
