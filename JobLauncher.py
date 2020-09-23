@@ -18,6 +18,9 @@ from libpy.pyutils import ActionRouter
 class Slurm:
     user = 'shanto'
 
+    RUNNING = 'RUNNING'
+    PENDING = 'PENDING'
+
     @staticmethod
     # sbatch file
     def sbatch(file, prod=False, verbose=False):
@@ -211,6 +214,29 @@ class Slurm:
             pyutils.errprint(f"SlurmError: in getting cluster available resourcess [{' '.join(cmd)}]", time_stamp=False)
             return []
 
+    @staticmethod
+    # get pending/running task and id in slurm. intersection of task and jobs return by job status
+    def get_slurm_task(tasks: List['Task'], jobs_in_cluster: List[dict], by_status=None):
+        # tasks: list of Task object
+        # jobs_in_cluster: list of jobs dictionary ({id, name, status} use get_jobs_in_sbatch method)
+        # by_status: if given return list
+        # return list of dict (task: and other job_key:) {[{}]}
+
+        slurm_tasks = defaultdict(list)  # {[{}]}, category by job_status. Each list contain dict{task, id}
+
+        # find out task by status
+        for job in jobs_in_cluster:
+            # if task in slurm
+            task = Task.find(tasks=tasks, name=job['name'])
+            if task:
+                status = job['status']
+                slurm_tasks[status].append(pyutils.merge_dict({'task': task}, job))
+
+        if by_status:
+            return slurm_tasks[by_status]
+
+        return slurm_tasks
+
 
 class Task:
     def __init__(self, cmd, out):
@@ -297,7 +323,7 @@ class Task:
     def incomplete_tasks(tasks, by='all', error_code=None):
         # by: all(return list): total incomplete tasks,
         #     cat(return dict[list]): separate list of tasks by error code, (error code comes from is_job_finished)
-        #           error_code: if error code is defined get that category tasks
+        #           error_code: if error code is defined get that category tasks (return list of tasks)
         #     both(return dict): return both all and cat
         #     status(return dict): return count status of each category in a dict
 
@@ -328,6 +354,12 @@ class Task:
         else:
             raise ValueError('Invalid by option')
 
+    @staticmethod
+    # given all task category it
+    def tasks_by_status(tasks):
+        # tasks: incomplete tasks by file
+        # seperate the tasks by category: incomplete (not in slurm), running, pending, incomplete_by_file_code
+        raise NotImplementedError
 
 # how to launch tasks [all, test, file]
 def tasks_launch_action_router(all_tasks, no_resource: int):
@@ -345,26 +377,12 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             if jobs_in_slurm is None:  # error to retreive jobs in slurm
                 jobs_in_slurm = []
 
-            # get pending/running task and id in slurm
-            def get_slurm_task(tasks, jobs_in_cluster: List[dict]):
-                tasks_pending, tasks_running = [], []
-                tasks_pending_id, tasks_running_id = [], []
-                # find out task by status
-                for job in jobs_in_cluster:
-                    # if task in slurm
-                    task = Task.find(tasks=tasks, name=job['name'])
-                    if task:
-                        if job['status'] == 'RUNNING':
-                            tasks_running.append(task)
-                            tasks_running_id.append(job['id'])
-                        elif job['status'] == 'PENDING':
-                            tasks_pending.append(task)
-                            tasks_pending_id.append(job['id'])
-                        else:
-                            raise ValueError('Unknown job status')
-                return tasks_pending, tasks_pending_id, tasks_running, tasks_running_id
+            tasks_by_st = Slurm.get_slurm_task(tasks=tasks, jobs_in_cluster=jobs_in_slurm)  # return {[{}]}
+            pending = pyutils.dict_list(tasks_by_st[Slurm.PENDING])
+            running = pyutils.dict_list(tasks_by_st[Slurm.RUNNING])
 
-            tasks_pending, tasks_pending_id, tasks_running, tasks_running_id = get_slurm_task(tasks, jobs_in_cluster=jobs_in_slurm)
+            tasks_pending, tasks_pending_id = pending['task'], pending['id']
+            tasks_running, tasks_running_id = running['task'], running['id']
 
             # tasks incomplete by file write
             tasks_incomplete = Task.incomplete_tasks(tasks=tasks, by='all')
@@ -375,7 +393,7 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             ))
 
             # get tasks only by file not exist
-            tasks_incomplete_by_filenotexist = Task.incomplete_tasks(tasks=tasks_incomplete, by='cat', error_code='file_not_exist')
+            incomplete_filenotexist = Task.incomplete_tasks(tasks=tasks_incomplete, by='cat', error_code='file_not_exist')
 
             # get incomplete task status that is not running or pending
             tasks_incomplete_status = Task.incomplete_tasks(tasks=tasks_incomplete, by='status')  # get incomplete task
@@ -387,7 +405,8 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
                 'pending': tasks_pending,
                 'pending_id': tasks_pending_id,
                 'running': tasks_running,
-                'running_id': tasks_running_id
+                'running_id': tasks_running_id,
+                'incomplete_filenotexist': incomplete_filenotexist
             }
 
         ts = tasks_by_status(tasks=tasks)  # tasks_by_status
@@ -420,6 +439,7 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {ts["incomplete_status"]}]') \
             .add('incomplete', lambda x: x, ts['incomplete'][:no_resource]) \
             .add('incomplete_all', lambda x: x, ts['incomplete']) \
+            .add('incomplete_filenotexist', lambda x: x, ts['incomplete_filenotexist'])\
             .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks, cancel_tasks_id=ip_cancel_tasks_id) \
             .add('incomplete + pending_all', callback_ip, tasks=ts['incomplete'] + ts['pending']) \
             .add('all [incomplete + pending + running]', callback_all,

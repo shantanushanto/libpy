@@ -405,5 +405,16 @@ def errprint(str, flush=True, time_stamp=True, new_line=True):
     if flush: sys.stderr.flush()
 
 
+# convert list of dict to dict of list
+def dict_list(lofd):
+    # lofd: list of dict, dofl: dict of list
+    # [{id: 1, name: a}, {id: 2, name: b}, {id:3, name: c}] -> {id: [1, 2, 3], name: [a, b, c]}
+    dofl = defaultdict(list)
+    for d in lofd:
+        for k, v in d.items():
+            dofl[k].append(v)
+    return dofl
+
+
 if __name__ == '__main__':
     mkdir_p('.tmp', verbose=True, backup_existing=True, if_contains='.py')
