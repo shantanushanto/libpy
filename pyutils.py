@@ -415,6 +415,17 @@ def dict_list(lofd):
             dofl[k].append(v)
     return dofl
 
+def set_seed(seed):
+    import random
+    import numpy as np
+
+    random.seed(seed)
+    np.random.seed(seed + 1)
+    try:
+        import tensorflow as tf
+        tf.random.set_seed(seed + 2)
+    except:
+        pass
 
 if __name__ == '__main__':
     mkdir_p('.tmp', verbose=True, backup_existing=True, if_contains='.py')

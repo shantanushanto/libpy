@@ -439,7 +439,7 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
             header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {ts["incomplete_status"]}]') \
             .add('incomplete', lambda x: x, ts['incomplete'][:no_resource]) \
             .add('incomplete_all', lambda x: x, ts['incomplete']) \
-            .add('incomplete_filenotexist', lambda x: x, ts['incomplete_filenotexist'])\
+            .add('incomplete_filenotexist', callback_ip, tasks=ts['incomplete_filenotexist'] + ip_cancel_tasks, cancel_tasks_id=ip_cancel_tasks_id)\
             .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks, cancel_tasks_id=ip_cancel_tasks_id) \
             .add('incomplete + pending_all', callback_ip, tasks=ts['incomplete'] + ts['pending']) \
             .add('all [incomplete + pending + running]', callback_all,
