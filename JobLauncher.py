@@ -9,17 +9,36 @@ import subprocess
 from typing import List, Union
 from tqdm import tqdm
 from collections import defaultdict
-
+from copy import deepcopy
 
 from libpy import pyutils, commonutils
 from libpy.pyutils import ActionRouter
 
 
 class Slurm:
+
     user = 'shanto'
 
     RUNNING = 'RUNNING'
     PENDING = 'PENDING'
+
+    def __init__(self, id, name, status, task: 'Task' = None):
+        self.id = id
+        self.name = name
+        self.status = status
+
+        self._task = task  # task object
+
+    @property
+    def task(self):
+        return self._task
+
+    @task.setter
+    def task(self, t):
+        self._task = t
+
+    def has_task(self):
+        return True if self.task else False
 
     @staticmethod
     # sbatch file
@@ -45,13 +64,17 @@ class Slurm:
     @staticmethod
     # cancel by status or job_id. job id either in int or string. For multiple job id must be string comma seperated
     def scancel(opt: str, jobids=None, prod=False):
-        # opt : pending, all, id
+        # opt : pending, all, id, id_pending (cancel only if id in PENDING)
         scancel_pre = f'scancel -u {Slurm.user}'
         if opt == 'all':
             cmd = f'{scancel_pre}'  # scancel -u shanto
         elif opt == 'pending':
             cmd = f'{scancel_pre} --state PENDING'  # scancel -u shanto --state PENDING
-        elif opt == 'id':
+        elif opt in ['id', 'id_pending']:
+            # cancelling only pending id
+            if opt == 'id_pending':
+                scancel_pre = f'{scancel_pre} --state PENDING'  # --quiet flag ignore if any prob occurs
+
             # scancel your_job-id1, your_job-id2, your_jobiid3
             if jobids == None:
                 raise ValueError('scancel id is passed as opt but jobids is None')
@@ -75,11 +98,14 @@ class Slurm:
                 result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                         universal_newlines=True)
                 if 'error' in result.stderr:
-                    raise ValueError(f'SlurmError: {result.stderr}')
-                time.sleep(3)
+                    pyutils.errprint(f'SlurmError: {result.stderr}', time_stamp=False)
+                    return False
+                time.sleep(0.01)
+                return True
             except:
+                pyutils.errprint(result.stderr, time_stamp=False)
                 pyutils.errprint(f"SlurmError: in scancel [{cmd}]", time_stamp=False)
-                return None
+                return False
 
     @staticmethod
     # job cancel by string/regular expression name
@@ -132,12 +158,9 @@ class Slurm:
             jobs = []
             for line in lines:
                 u = line.split(' ')
-                job = {'id': int(u[0]),
-                       'status': u[1],
-                       'name': u[2]
-                       }
+                job = Slurm(id=int(u[0]), status=u[1], name=u[2])
                 if by_status:
-                    if by_status == job['status']:
+                    if by_status == job.status:
                         jobs.append(job)
                 else:
                     jobs.append(job)
@@ -215,27 +238,76 @@ class Slurm:
             return []
 
     @staticmethod
-    # get pending/running task and id in slurm. intersection of task and jobs return by job status
-    def get_slurm_task(tasks: List['Task'], jobs_in_cluster: List[dict], by_status=None):
+    # get pending/running Slurm object with task inside. intersection of task and jobs
+    def get_slurm_task(tasks: List['Task'], ret_by=None, by_status=None):
         # tasks: list of Task object
-        # jobs_in_cluster: list of jobs dictionary ({id, name, status} use get_jobs_in_sbatch method)
+        # ret_by: TaskId (task and id in separate list). by_status must be given
         # by_status: if given return list
-        # return list of dict (task: and other job_key:) {[{}]}
+        # return: list of SlurmTask object in dictionary by status.
+        #         Also has a 'NOT_IN_SLURM' category that is (tasks - not_slurm_job)
+        NOT_IN_SLURM = 'NOT_IN_SLURM'
+        slurm_tasks = defaultdict(list)  # {[Slurm]}, category by job_status. Each list contain dict{task, id}
 
-        slurm_tasks = defaultdict(list)  # {[{}]}, category by job_status. Each list contain dict{task, id}
+        jobs_in_cluster = Slurm.get_jobs_in_sbatch(by_status=by_status)
 
-        # find out task by status
-        for job in jobs_in_cluster:
-            # if task in slurm
-            task = Task.find(tasks=tasks, name=job['name'])
-            if task:
-                status = job['status']
-                slurm_tasks[status].append(pyutils.merge_dict({'task': task}, job))
+        # sorting by their name
+        jobs_in_cluster = sorted(jobs_in_cluster, key=lambda x: x.name)
+        tasks = sorted(tasks, key=lambda x: x.file_name())
+
+        # with two pointer search in sorted jobs and tasks name to achieve order O(n)
+        jidx, tidx = 0, 0
+        while jidx < len(jobs_in_cluster) and tidx < len(tasks):
+            job = jobs_in_cluster[jidx]
+            task = tasks[tidx]
+            '''
+            Case 1: [e g x] [a d e f g h z] -> [e, g]
+            Case 2: [z] [a b] -> []
+            Case 3: [b c m n] [a e f g m] -> [m]
+            '''
+            if job.name == task.file_name():
+                slurmtask = SlurmTask(task=task, slurm=job)
+                slurm_tasks[job.status].append(slurmtask)
+                jidx += 1
+                tidx += 1
+            elif job.name > task.file_name():
+                slurm_tasks[NOT_IN_SLURM].append(task)
+                tidx += 1
+            elif job.name < task.file_name():
+                jidx += 1
+
+        # extra tasks that is not in job
+        for idx in range(tidx, len(tasks)):
+            slurm_tasks[NOT_IN_SLURM].append(tasks[idx])
+
+        # if TaskId: return task and slurm id in seperate list
+        if ret_by == 'TaskId':
+            if by_status is None:
+                raise ValueError('For TaskId option status need to be specified.')
+            else:
+                tasks, slurm_ids = [], []
+                for slurm_task in slurm_tasks[by_status]:
+                    tasks.append(slurm_task.task)
+                    slurm_ids.append(slurm_task.id)
+                return tasks, slurm_ids
 
         if by_status:
             return slurm_tasks[by_status]
 
         return slurm_tasks
+
+    @staticmethod
+    # get individual attr val in a list given all Slurm Job.
+    def get_attr(jobs, by='name'):
+        vals = []
+        for job in jobs:
+            if by == 'name':
+                vals.append(job.name)
+            elif by == 'id':
+                vals.append(job.id)
+            else:
+                raise ValueError('Invalid attr value')
+
+        return vals
 
 
 class Task:
@@ -354,12 +426,63 @@ class Task:
         else:
             raise ValueError('Invalid by option')
 
+
+class SlurmTask(Task):
+
+    def __init__(self, task, slurm=None):
+        super().__init__(cmd=task.cmd, out=task.out)
+
+        self.slurm = slurm
+
+    def in_slurm(self):
+        return True if self.slurm else False
+
+    # update slurm status
+    def update(self):
+        raise NotImplementedError
+
+    # make sure it is not in the slurm.
+    def remove_from_slurm(self):
+        # cancel if in slurm. if not in slurm return true
+        # on: Slurm Status. Cancel only if in on status
+        # maintain status
+
+        # one case not handled: did not check scancel error code if any. And by any how it didn't get cancelled
+        Slurm.scancel(opt='id', jobids=self.slurm.id, prod=True)
+        return True
+
     @staticmethod
     # given all task category it
     def tasks_by_status(tasks):
-        # tasks: incomplete tasks by file
-        # seperate the tasks by category: incomplete (not in slurm), running, pending, incomplete_by_file_code
-        raise NotImplementedError
+        # return: list of dict by status. All task converted to SlurmTask
+
+        # tasks incomplete by file write
+        tasks_incomplete_by_file = Task.incomplete_tasks(tasks=tasks, by='all')
+
+        # get running, pending and rest of the task that is incomplete by file (SlurmTask object)
+        slurm_tasks = Slurm.get_slurm_task(tasks=tasks_incomplete_by_file)
+        tasks_running, tasks_pending, tasks_incomplete = \
+            slurm_tasks[Slurm.RUNNING], slurm_tasks[Slurm.PENDING], slurm_tasks['NOT_IN_SLURM']
+
+        d_task = defaultdict(list, {
+            'incomplete': tasks_incomplete,  # by checking file and not running or pending in slurm
+            'pending': tasks_pending,
+            'running': tasks_running,
+            'incomplete_by_file': tasks_incomplete + tasks_pending + tasks_running
+            # all task including running and pending
+        })
+
+        # get task by file checking category
+        incomplete_file_type = Task.incomplete_tasks(tasks=tasks_incomplete, by='cat')
+
+        # merge the file and d_task
+        for k, vlist in incomplete_file_type.items():
+            if k in d_task:
+                raise ValueError('Key supposed to be unique and not exist.')
+            d_task[k] = [SlurmTask(task=task) for task in vlist]  # converting to SlurmTask object
+
+        return d_task
+
 
 # how to launch tasks [all, test, file]
 def tasks_launch_action_router(all_tasks, no_resource: int):
@@ -369,81 +492,50 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
         tasks = kwargs['tasks']
         no_resource = kwargs['no_resource']
 
-        # get tasks by status type
-        def tasks_by_status(tasks) -> dict:
-            # get job details running in cluster
-            jobs_in_slurm = Slurm.get_jobs_in_sbatch()
+        def cb_get_task_to_submit(*args, **kwargs):
+            tasks = kwargs['tasks']
+            submit_tasks = []
+            for task in tasks:
+                try:
+                    if task.in_slurm():
+                        if task.remove_from_slurm():
+                            submit_tasks.append(task)
+                    else:
+                        submit_tasks.append(task)
+                except AttributeError as e:
+                    # task is not a SlurmTask. Thus can add directly for submit task
+                    submit_tasks.append(task)
 
-            if jobs_in_slurm is None:  # error to retreive jobs in slurm
-                jobs_in_slurm = []
+            return submit_tasks
 
-            tasks_by_st = Slurm.get_slurm_task(tasks=tasks, jobs_in_cluster=jobs_in_slurm)  # return {[{}]}
-            pending = pyutils.dict_list(tasks_by_st[Slurm.PENDING])
-            running = pyutils.dict_list(tasks_by_st[Slurm.RUNNING])
+        tasks_by_status = SlurmTask.tasks_by_status(tasks=tasks)  # tasks_by_status
 
-            tasks_pending, tasks_pending_id = pending['task'], pending['id']
-            tasks_running, tasks_running_id = running['task'], running['id']
-
-            # tasks incomplete by file write
-            tasks_incomplete = Task.incomplete_tasks(tasks=tasks, by='all')
-
-            # taking task that is not running or pending
-            tasks_incomplete = list(set(tasks_incomplete).difference(
-                set(tasks_running).union(set(tasks_pending))
-            ))
-
-            # get tasks only by file not exist
-            incomplete_filenotexist = Task.incomplete_tasks(tasks=tasks_incomplete, by='cat', error_code='file_not_exist')
-
-            # get incomplete task status that is not running or pending
-            tasks_incomplete_status = Task.incomplete_tasks(tasks=tasks_incomplete, by='status')  # get incomplete task
-
-
-            return {
-                'incomplete': tasks_incomplete,  # by checking file and not running or pending in slurm
-                'incomplete_status': tasks_incomplete_status,  # incomplete task status by different error
-                'pending': tasks_pending,
-                'pending_id': tasks_pending_id,
-                'running': tasks_running,
-                'running_id': tasks_running_id,
-                'incomplete_filenotexist': incomplete_filenotexist
-            }
-
-        ts = tasks_by_status(tasks=tasks)  # tasks_by_status
-
-        # handling incomplete + pending task
-        def callback_ip(*args, **kwargs):
-            # cancel all unless cancel_tasks_id is provided
-            key_cancel = 'cancel_tasks_id'
-            if  key_cancel in kwargs:
-                cancel_tasks_ids = kwargs[key_cancel]
-                Slurm.scancel(opt='id', jobids=cancel_tasks_ids, prod=True)
-            else:
-                Slurm.scancel(opt='pending', prod=True)
-            return kwargs['tasks']
-
-        def callback_all(*args, **kwargs):
-            Slurm.scancel(opt='all', prod=True)
-            return kwargs['tasks']
+        # regenerate ts to conveniently use following code
+        ts = deepcopy(tasks_by_status)
+        ts['incomplete_status'] = Task.incomplete_tasks(tasks=ts['incomplete'], by='status')
+        ts['pending'] = sorted(ts['pending'], key=lambda a: a.slurm.id)  # sorting pending to take last job to cancel
 
         # when cancelling pending will only cancel on available resources
         # taking at least 1 pending cancel to avoid [-0:]-> return all bug
         no_pending_cancel = max(1, (no_resource - len(ts['incomplete'])))
-        ip_cancel_tasks = ts['pending'][-no_pending_cancel:]
-        ip_cancel_tasks_id = ts['pending_id'][-no_pending_cancel:]  # job id to cancel
-        # first cancel ip_cancel_tasks from slurm then resubmit them again on available resource
-        callback_ip_tasks = ts['incomplete'] + ip_cancel_tasks
+        pending_on_resource = ts['pending'][-no_pending_cancel:]
 
+        # todo: (remove it) I am keeping it temporarily for debugging purpose. If we need sorting or not
+        # pending_on_resource = sorted(ts['pending'], key=lambda a: a.slurm.id)[-no_pending_cancel:]
+        print('Pending cancel: ')
+        if len(ts['pending']) > 0 and 0 <= -no_pending_cancel-1 < len(ts['pending']):
+            print(ts['pending'][0].slurm.id, ts['pending'][-no_pending_cancel-1].slurm.id)
+        print(", ".join([str(t.slurm.id) for t in pending_on_resource]))
 
         tasks_submit = ActionRouter(
             header=f'Status [running: {len(ts["running"])}, pending: {len(ts["pending"])}, incomplete: {ts["incomplete_status"]}]') \
             .add('incomplete', lambda x: x, ts['incomplete'][:no_resource]) \
             .add('incomplete_all', lambda x: x, ts['incomplete']) \
-            .add('incomplete_filenotexist', callback_ip, tasks=ts['incomplete_filenotexist'] + ip_cancel_tasks, cancel_tasks_id=ip_cancel_tasks_id)\
-            .add('incomplete + pending', callback_ip, tasks=callback_ip_tasks, cancel_tasks_id=ip_cancel_tasks_id) \
-            .add('incomplete + pending_all', callback_ip, tasks=ts['incomplete'] + ts['pending']) \
-            .add('all [incomplete + pending + running]', callback_all,
-                 tasks=ts['incomplete'] + ts['pending'] + ts['running']) \
+            .add('file_not_exist + pending', cb_get_task_to_submit, tasks=ts['file_not_exist'] + pending_on_resource)\
+            .add('incomplete + pending', cb_get_task_to_submit, tasks=ts['incomplete'] + pending_on_resource) \
+            .add('incomplete + pending_all', cb_get_task_to_submit, tasks=ts['incomplete'] + ts['pending']) \
+            .add('all by file', cb_get_task_to_submit, tasks=ts['incomplete_by_file'])\
+            .add('error_in_file', lambda x: x, ts['error_in_file'])\
             .ask().ret()
 
         return tasks_submit

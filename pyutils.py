@@ -14,6 +14,7 @@ from libpy import commonutils
 def mkdir_p(dir, verbose=False, backup_existing=False, if_contains=None):
     '''make a directory (dir) if it doesn't exist'''
     # todo: add recursive directory creation
+    # todo: give a msg when dir exist but empty
     # dir: given full path only create last name as directory
     # if_contains: backup_existing True if_contains is a list. If there is any file/directory in the
     #              first (not recursive) pass match with if_contains then backup
@@ -331,6 +332,16 @@ def merge_dict(d, d1):
     return d
 
 
+# convert argument to dictionary
+def arg_to_dict(args):
+    log = dict()
+    # putting all arg in log
+    for arg in vars(args):
+        log[arg] = getattr(args, arg)
+
+    return log
+
+
 tag_job_finished_successfully = 'JobFinishedSuccessfully'
 
 
@@ -346,7 +357,7 @@ def is_job_finished(file_path, finish_tag=tag_job_finished_successfully, by='any
     err_path = f'{file_path}.err'
     out_path = f'{file_path}.out'
 
-    cat_code = 'file_not_exist'  # successfull, file_not_exist, error_in_file, err_file_empty, out_not_exist,
+    cat_code = 'unknown'  # successfull, file_not_exist, error_in_file, err_file_empty, out_not_exist,
 
     # check for finish tag in err
     if os.path.isfile(err_path):  # check if file exist but finish tag doesn't exist
@@ -365,6 +376,8 @@ def is_job_finished(file_path, finish_tag=tag_job_finished_successfully, by='any
             else:
                 if 'error' in file_str.lower():
                     cat_code = 'error_in_file'
+                else:
+                    cat_code = 'no_finish_tag'
     else:
         cat_code = 'file_not_exist'
 
@@ -415,6 +428,7 @@ def dict_list(lofd):
             dofl[k].append(v)
     return dofl
 
+
 def set_seed(seed):
     import random
     import numpy as np
@@ -426,6 +440,7 @@ def set_seed(seed):
         tf.random.set_seed(seed + 2)
     except:
         pass
+
 
 if __name__ == '__main__':
     mkdir_p('.tmp', verbose=True, backup_existing=True, if_contains='.py')
