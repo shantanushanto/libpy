@@ -401,9 +401,18 @@ def print_log(log):
     print_job_finished()
 
 
-def normalize(prob):
-    tot = sum(prob)
+def normalize(prob, make_pos=False):
     p = prob[:]
+    if make_pos:
+        mn = min(p)
+        if mn < 0:
+            # make all value positive
+            mn = abs(mn) # make the negative value positive
+            for i in range(len(p)):
+                p[i] += mn
+
+    tot = sum(p)
+
     if tot == 0: return p  # avoid dividing by 0
     for i in range(len(p)):
         p[i] /= tot
