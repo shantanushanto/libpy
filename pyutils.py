@@ -4,7 +4,6 @@ import time
 import json
 import sys
 import dill
-import re
 from typing import List
 from collections import defaultdict
 
@@ -308,6 +307,36 @@ def files_with_extension(dir, extension, fullpath=True):
             else:
                 files.append(file)
     return files
+
+
+# get recent file by date. File has name pattern of prefix_date.extension
+def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1):
+    """
+    Get recent file by date. File has name pattern of prefix_date.extension
+    :param dir:
+    :param prefix:
+    :param extension:
+    :param fullpath:
+    :param N: if N > 1 return recent N dated files
+    :return:
+    """
+    # get all file with extension
+    files = files_with_extension(dir=dir, extension=extension, fullpath=False)
+    # filter out by matching prefix
+    files = [file for file in files if file.startswith(prefix)]
+    files = sorted(files, key=lambda x: x.split(prefix)[1])
+
+    # return last dated file if exist otherwise return None
+    try:
+        last_files = files[-N:]
+
+        # generate full path
+        if fullpath:
+            last_files = [os.path.join(dir, last_file) for last_file in last_files]
+        # return only last file or N recent files in list
+        return last_files[-1] if N == 1 else last_files
+    except:
+        return None
 
 
 def rename_files_with_extension(dir, from_ext, to_ext, verbose=True):
