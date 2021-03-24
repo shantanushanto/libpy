@@ -14,6 +14,12 @@ class DictPanda:
         self._rows = []
 
     def add(self, key, value):
+        """
+        Add by key value pair
+        :param key:
+        :param value:
+        :return:
+        """
         if key in self._row.keys():
             if self._verbose:
                 print(f'Key ({key}) already exists')
@@ -21,9 +27,23 @@ class DictPanda:
         self._row[key] = value
         return self
 
+    def add_dict(self, d: dict):
+        """
+        add from a dictionary
+        :return:
+        """
+        for key, value in d.items():
+            self.add(key=key, value=value)
+        return self
+
     def done_row(self):
         self._rows.append(self._row)
         self._row = {}
+        return self
+
+    def load_with_dataframe(self, df: pd.DataFrame):
+        for ind, row in df.iterrows():
+            self._rows.append(row.to_dict())
         return self
 
     def get_as_dataframe(self):
@@ -31,7 +51,7 @@ class DictPanda:
         row: dict
         for row in self._rows:
             df_row = pd.DataFrame(data=[row.values()], columns=row.keys())
-            df = pd.concat([df, df_row])
+            df = pd.concat([df, df_row], sort=False)
 
         return df
 
@@ -84,6 +104,16 @@ def pd_set_display(max_col=True, max_row=True):
         pd.set_option("max_columns", None)  # Showing only two columns
     if max_row:
         pd.set_option("max_rows", None)
+
+
+def print_all(df):
+    """
+    Print all rows and columns
+    :param df:
+    :return:
+    """
+    pd_set_display()
+    print(df)
 
 
 def intersect(a, b):
