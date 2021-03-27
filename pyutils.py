@@ -6,6 +6,7 @@ import sys
 import dill
 from typing import List
 from collections import defaultdict
+import re
 
 from libpy import commonutils
 
@@ -310,7 +311,7 @@ def files_with_extension(dir, extension, fullpath=True):
 
 
 # get recent file by date. File has name pattern of prefix_date.extension
-def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1):
+def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1, date_anywhere=True):
     """
     Get recent file by date. File has name pattern of prefix_date.extension
     :param dir:
@@ -318,13 +319,27 @@ def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1):
     :param extension:
     :param fullpath:
     :param N: if N > 1 return recent N dated files
+    :param date_anywhere: find date from file name dynamically
     :return:
     """
     # get all file with extension
     files = files_with_extension(dir=dir, extension=extension, fullpath=False)
-    # filter out by matching prefix
+    # filter out by matching prefix, assuming date is in last
     files = [file for file in files if file.startswith(prefix)]
-    files = sorted(files, key=lambda x: x.split(prefix)[1])
+
+    if date_anywhere:
+        # dynamically find date in file and sort accordingly
+        def date_filter(line):
+            try:
+                d = re.search(r'\d{4}-\d{2}-\d{2}', line)[0]
+                return d
+            except:
+                return line
+
+        files = sorted(files, key=lambda x: date_filter(x))
+    else:
+        # assume date is at end
+        files = sorted(files, key=lambda x: x.split(prefix)[1])
 
     # return last dated file if exist otherwise return None
     try:

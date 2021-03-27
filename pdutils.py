@@ -52,7 +52,7 @@ class DictPanda:
         for row in self._rows:
             df_row = pd.DataFrame(data=[row.values()], columns=row.keys())
             df = pd.concat([df, df_row], sort=False)
-
+        df = df.reset_index(drop=True)
         return df
 
 
@@ -99,11 +99,21 @@ def col_arrange(col_orders, df) -> pd.DataFrame:
     return df[new_col_orders]
 
 
-def pd_set_display(max_col=True, max_row=True):
+def pd_set_display(max_col=True, max_row=True, col_wrap=False):
+    """
+
+    :param max_col:
+    :param max_row:
+    :param col_wrap: wrap the column while printing
+    :return:
+    """
     if max_col:
         pd.set_option("max_columns", None)  # Showing only two columns
     if max_row:
         pd.set_option("max_rows", None)
+
+    if not col_wrap:
+        pd.set_option('display.expand_frame_repr', False)
 
 
 def print_all(df):
@@ -113,7 +123,7 @@ def print_all(df):
     :return:
     """
     pd_set_display()
-    print(df)
+    print(df.round(2))
 
 
 def intersect(a, b):
@@ -134,7 +144,14 @@ def subset(sub, super, msg="check"):
 
 
 def percentage(target, base, round=2, how='change'):
+    """
 
+    :param target:
+    :param base:
+    :param round:
+    :param how: [change, normal] method to calculate
+    :return:
+    """
     if how == 'change':
         val = ((target-base)/base) * 100
     elif how == 'normal':
