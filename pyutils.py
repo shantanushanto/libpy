@@ -7,6 +7,8 @@ import dill
 from typing import List
 from collections import defaultdict
 import re
+import datetime
+import uuid
 
 from libpy import commonutils
 
@@ -95,6 +97,35 @@ def dir_choice(dir, verbose=True):
         mkdir_p(dir, verbose)
 
     return dir
+
+
+def dir_backup(path_dir):
+    """
+    If directory exists make a copy and backup. Not deleting the current one
+    :param path_dir:
+    :return:
+    """
+
+    def helper_copy_dir(src, dst):
+        import errno
+        try:
+            shutil.copytree(src, dst)
+        except OSError as exc:  # python >2.5
+            if exc.errno == errno.ENOTDIR:
+                shutil.copy(src, dst)
+            else:
+                raise
+
+    if os.path.exists(path_dir) and len(os.listdir(path_dir)) > 0:
+        path, dir_name = os.path.split(path_dir)
+
+        # create unique directory name
+        backup_dir_name = f'{dir_name}_{datetime.datetime.today().date()}_{uuid.uuid4()}'
+        backup_path_dir = os.path.join(path, backup_dir_name)
+
+        print(f'Exists: {path_dir} Backing up: {backup_path_dir}', file=sys.stderr)
+
+        helper_copy_dir(src=path_dir, dst=backup_path_dir)
 
 
 class ActionRouterClass:

@@ -143,6 +143,17 @@ def subset(sub, super, msg="check"):
         return False
 
 
+def common_cols(ldf, rdf):
+    """
+    Get common columns between two dataframe
+    :param ldf:
+    :param rdf:
+    :return:
+    """
+    cols = intersect(list(ldf), list(rdf))
+    return cols
+
+
 def percentage(target, base, round=2, how='change'):
     """
 
