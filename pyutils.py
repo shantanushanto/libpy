@@ -341,6 +341,23 @@ def files_with_extension(dir, extension, fullpath=True):
     return files
 
 
+def get_date_from_path(path):
+    """
+    Extract date from path/any string. It'll handle full path automatically
+    :param line:
+    :return: if date is not found return the full string as it is
+    """
+    # find base file name if full path is given
+    line = os.path.basename(path) if os.path.isabs(path) else path
+
+    # extract date
+    try:
+        d = re.search(r'\d{4}-\d{2}-\d{2}', line)[0]
+        return d
+    except:
+        return line
+
+
 # get recent file by date. File has name pattern of prefix_date.extension
 def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1, date_anywhere=True):
     """
@@ -360,14 +377,7 @@ def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1, date_
 
     if date_anywhere:
         # dynamically find date in file and sort accordingly
-        def date_filter(line):
-            try:
-                d = re.search(r'\d{4}-\d{2}-\d{2}', line)[0]
-                return d
-            except:
-                return line
-
-        files = sorted(files, key=lambda x: date_filter(x))
+        files = sorted(files, key=lambda x: get_date_from_path(x))
     else:
         # assume date is at end
         files = sorted(files, key=lambda x: x.split(prefix)[1])
