@@ -9,6 +9,7 @@ from collections import defaultdict
 import re
 import datetime
 import uuid
+from functools import wraps
 
 from libpy import commonutils
 
@@ -101,7 +102,7 @@ def dir_choice(dir, verbose=True):
 
 def dir_backup(path_dir):
     """
-    If directory exists make a copy and backup. Not deleting the current one
+    If directory exists make a copy and backup. Not deleting the keep_current_ticker one
     :param path_dir:
     :return:
     """
@@ -476,6 +477,27 @@ def is_job_finished(file_path, finish_tag=tag_job_finished_successfully, by='any
         }
     else:
         raise ValueError('Invalid by option')
+
+
+def measure(func, as_='s'):
+    name_func = func.__name__
+    @wraps(func)
+    def _time_it(*args, **kwargs):
+        start = int(round(time.time() * 1000))
+        try:
+            return func(*args, **kwargs)
+        finally:
+            end_ = int(round(time.time() * 1000)) - start
+            msec = end_ if end_ > 0 else 0
+            if as_ == 's':
+                tot = msec / 1000
+            elif as_ == 'm':
+                tot = msec / (1000 * 60)
+            elif as_ == 'ms':
+                tot = msec
+
+            print(f"Execution time ({name_func}): {tot:.2f} {as_}")
+    return _time_it
 
 
 def print_log(log):

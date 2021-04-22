@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import pandas as pd
 from collections import defaultdict
+import datetime
 
 
 class DictPanda:
@@ -97,6 +98,43 @@ def col_arrange(col_orders, df) -> pd.DataFrame:
     new_col_order = remove_duplicates(new_col_order)
     new_col_orders = new_col_order + sorted(list(set(list(df)) - set(new_col_order)))
     return df[new_col_orders]
+
+
+def replicate_rows_between_date(sub: pd.DataFrame, date_col):
+    """
+    Replicate rows between two datetime
+    :param sub:
+    :param date_col: column name that holds date
+    :return:
+    """
+    df_fill = pd.DataFrame()
+    keep_cols = list(sub)
+
+    symbols = sub['symbol'].unique()
+    for symbol in symbols:
+        df_tmp = sub[sub['symbol'] == symbol]
+        df_tmp = df_tmp.sort_values(by=date_col).copy()
+
+        df_tmp['_to'] = df_tmp[date_col].shift(-1)
+
+        # filling gap
+        for index, row in df_tmp.iterrows():
+
+            # find date from -> to
+            if pd.isnull(row['_to']):  # for last row create data for one forward quarter
+                date_from, date_to = row[date_col], row[date_col] + datetime.timedelta(days=30 * 3)
+            else:
+                date_from, date_to = row[date_col], row['_to'] - datetime.timedelta(days=1)
+
+            # replicate row with new date
+            for date in pd.date_range(date_from, date_to):  # including extreme points
+                new_row = row
+                new_row[date_col] = date
+
+                df_fill = df_fill.append(new_row)
+
+    sub = df_fill[keep_cols]
+    return sub
 
 
 def pd_set_display(max_col=True, max_row=True, col_wrap=False):
