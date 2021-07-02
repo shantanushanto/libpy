@@ -218,6 +218,9 @@ def header(line, sz=1):
     if sz == 1:
         eq = "".join(['=' for _ in range(len(line))])
         para = f'{eq}\n{line}\n{eq}'
+    elif sz == 2:
+        eq = "".join(['-' for _ in range(len(line))])
+        para = f'{line}\n{eq}'
     else:
         para = line
 
