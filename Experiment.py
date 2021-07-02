@@ -13,8 +13,19 @@ import router
 
 class ExpParam:
 
+    # use this cmd while parameter add to use 1st value as param and 2nd value as file name
+    detector_file_only = 'FILEONLY'
+
     def __init__(self):
         self.param = OrderedDict()
+
+    @staticmethod
+    def invalid_param(name):
+        invalid_names = [ExpParam.detector_file_only]
+        for pname in invalid_names:
+            if pname in name:
+                return True
+        return False
 
     def _get_args_order(self):
         # return args order based on depend on self.param
@@ -87,6 +98,7 @@ class ExpParam:
         """
         args contain:   func(function): generate parameter value,
                         depend (list[str]): parameter list need to be generated before this one (args_order)
+                        FILEONLY (boolean): [param_value, file_name_value] and set in_file_name as True
 
         func definition and example:
         ----------------
@@ -136,7 +148,8 @@ class ExpParam:
             arg = self.param[arg_name]
 
             f = arg['func']
-            f_val = f(**single_args)  # single_args may contain some value based to filter out something
+            # single_args may contain some value based to filter out something if depend_on declared in param add
+            f_val = f(**single_args)
             f_val = [f_val] if type(f_val) != list else f_val  # convert to list if single value
 
             for fv in f_val:
@@ -144,7 +157,15 @@ class ExpParam:
                 # if arg_name in single_args:
                 #   raise ValueError(f'{arg_name} should not be in single_args')
 
-                fd = {arg_name: fv}
+                # while generating file name instead of using the parameter
+                # use first value in parameter but second value in the file name
+                tag = ExpParam.detector_file_only
+                if tag in arg and arg[tag] is True:
+                    # [param value, value to use in file name]
+                    # 2nd value will be detected by file name generator and will not add in param list but in file name
+                    fd = {arg_name: fv[0], f'{ExpParam.detector_file_only}#{arg_name}': fv[1]}
+                else:  # use the passed parameter while creating file name
+                    fd = {arg_name: fv}
                 gen_kwargs(single_args=OrderedDict({**single_args, **fd}), arg_names=arg_names[1:])
 
         gen_kwargs(single_args=OrderedDict(), arg_names=args_order)
@@ -153,7 +174,7 @@ class ExpParam:
 
 class Experiment:
 
-    def __init__(self, exe, data_dir, exp_param, name=None):
+    def __init__(self, exe, data_dir, exp_param, name=None, add_batch_path_in_param=True):
         self.name = name if name else data_dir
 
         self.data_dir = os.path.join(router.expdata_root, data_dir)  # full path
@@ -161,14 +182,20 @@ class Experiment:
 
         self.exp_param = exp_param
 
+        self.add_batch_path_in_param = add_batch_path_in_param
+
+    def get_exe_cmd(self, cargs=None):
+        cmd = f'python {self.exe} {cargs}'
+        return cmd
+
     def _create_task(self, **kwargs):
         # Job name is used as file name also. Make it unique
-        job_name, cargs = JobLauncher.gen_job_name(kwargs=kwargs, data_dir=self.data_dir)
+        job_name, cargs = JobLauncher.gen_job_name(kwargs=kwargs, data_dir=self.data_dir, add_batch_path=self.add_batch_path_in_param)
 
         # Joblauncher create .out and .err both with out name
         out = os.path.join(self.data_dir, job_name)
 
-        cmd = f'python {self.exe} {cargs}'
+        cmd = self.get_exe_cmd(cargs=cargs)
         return JobLauncher.Task(cmd, out)
 
     # get final.all sync from remote to local

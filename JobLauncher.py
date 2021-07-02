@@ -551,7 +551,7 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
 
 
 # given kwargs dict generate job name and arguments for cmd
-def gen_job_name(kwargs, data_dir, batch_path_suffix=None):
+def gen_job_name(kwargs, data_dir, batch_path_suffix=None, add_batch_path=True):
     # data_dir: dir to save data. data_dir as added with batch_path
     # batch_path: if given will be that one. Else default one
 
@@ -573,12 +573,18 @@ def gen_job_name(kwargs, data_dir, batch_path_suffix=None):
             kv = f'{kname}-{v}'
             job_name += kv if job_name == '' else f'_{kv}'  # (key, val) is separated by underscore
         # generate cmd arguments
-        cargs = f'{cargs} --{k} {v}'
+        from libpy.Experiment import ExpParam
+        # discard if param name is invalid. e.g. want to add in file name but not in param list
+        if not ExpParam.invalid_param(name=k):
+            cargs = f'{cargs} --{k} {v}'
 
     # adding batch_path from job name if no batch_path is given
     batch_path = job_name if batch_path_suffix is None else batch_path_suffix
     batch_path = os.path.join(data_dir, batch_path)  # construct full path
-    cargs = f'{cargs} --batch_path {batch_path}'
+
+    if add_batch_path:
+        cargs = f'{cargs} --batch_path {batch_path}'
+
     if len(job_name) > 210:
         raise ValueError(f'File name may exceed 255 characters. Checking done from create_task. e.g. {job_name}')
 

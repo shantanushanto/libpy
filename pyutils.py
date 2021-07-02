@@ -331,7 +331,10 @@ def read_pickle(path):
 
 
 def files_with_extension(dir, extension, fullpath=True):
-    # given directory and extension get all files.
+    '''
+    given directory and extension get all files.
+    :param extension: extension is check with endswith. adding dot is optional.
+    '''
     files = []
     for file in os.listdir(dir):
         if file.endswith(extension):
