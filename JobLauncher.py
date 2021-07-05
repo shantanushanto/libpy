@@ -979,6 +979,20 @@ class TerraGPULauncher(PAlabLauncher):
 def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1,
                submission_check=False, sbatch_extra_cmd='source activate rl\n',
                acc_id=122818929441, tasks_each_launch=14):
+    '''
+
+    :param cluster: name of the cluster
+    :param callback_batch_gen: a callback function that return a list of Task object
+    :param job_name: any string to show the job name in cluster
+    :param no_cpu: how many cpu to use per task
+    :param time:
+    :param no_exlude_node: for palab cluster exlude some node to not submit jobs
+    :param submission_check: if submission_check is false it will only create the sbatch file but will not submit them automatically
+    :param sbatch_extra_cmd: any extra command need to be done before executing original program
+    :param acc_id: acc_id is mainly for tamu hprc
+    :param tasks_each_launch: it is required for tamulauncher. how many tasks will be launched each time
+    :return:
+    '''
     # choose cluster
     if cluster == 'palab':
         server = PAlabLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu,
