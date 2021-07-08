@@ -741,7 +741,6 @@ class TamuLauncher(JobLauncher):
             print(f'sbatch {job_file}')
             if not self.submission_check:
                 success = Slurm.sbatch(file=job_file, prod=True, verbose=True)
-                return success
 
 
 class SlurmLauncher(JobLauncher):
