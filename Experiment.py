@@ -228,13 +228,13 @@ class Experiment:
         for i in range(min(len(tasks), n)):
             pyutils.errprint(f'{tasks[i]}', time_stamp=False)
 
-    def run(self, cluster, prod, acc_id=122818921461):
+    def run(self, cluster, prod, acc_id=122818921461, time='00:30:00'):
 
         self.data_dir = pyutils.dir_choice(self.data_dir)
         # launch job in cluster
         JobLauncher.launch_job(
             cluster=cluster, callback_batch_gen=self.get_tasks_gen(), submission_check=not prod,
-            job_name='cmaes_bin', acc_id=acc_id, time='15:00:00')
+            job_name='cmaes_bin', acc_id=acc_id, time=time)
 
         # create readme file in the folder to easy remember
         commonutils.readme(self.data_dir)
