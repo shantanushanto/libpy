@@ -974,6 +974,33 @@ class TerraGPULauncher(PAlabLauncher):
         return header
 
 
+class TerraCPULauncher(PAlabLauncher):
+
+    def __init__(self, task_gen, acc_id=12281892943, tasks_each_launch=1, no_cpu_per_task=1, time='3:30:00',
+                 mem='5000M', sbatch_extra_cmd='', no_exclude_node=0, submission_check=False):
+        '''
+        Make sure all the directories are already exist
+        task_gen is a function that return list of Task
+        no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
+        '''
+        self.acc_id = acc_id
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd,
+                         no_exclude_node=no_exclude_node, submission_check=submission_check)
+
+    def _cluster_specific_header(self, node_name, no_exclude_node):
+        # header to use gpu
+
+        header = (
+            f'#SBATCH --export=NONE\n'
+            f'#SBATCH --get-user-env=L\n'
+            f'#SBATCH --account={self.acc_id}\n'
+            f'#SBATCH --time={self.time}\n'
+            f'#SBATCH --ntasks={self.no_tasks}\n'
+            f'#SBATCH --mem={self.mem}\n'
+        )
+        return header
+
+
 # cluster launch job
 def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1,
                submission_check=False, sbatch_extra_cmd='source activate rl\n',
@@ -1006,11 +1033,20 @@ def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', 
         # don't use tasks_each_launch in tamulauncher. It has a bug that doesn't follow tasks-per-node hence request large SUs
         server = TamuLauncher(callback_batch_gen, job_name=job_name, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd,
                               time=time, submission_check=submission_check, tasks_each_launch=tasks_each_launch)
-    elif cluster == 'terragpu':
+    elif cluster in ['terragpu', 'terracpu']:
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
-        server = TerraGPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time,
-                                  submission_check=submission_check)
+
+        if cluster == 'terracpu':
+            sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModuleCPU.sh")}'
+            server = TerraCPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time,
+                                      submission_check=submission_check)
+        elif cluster == 'terragpu':
+            sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
+            server = TerraGPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time,
+                                      submission_check=submission_check)
+        else:
+            raise ValueError('Invalid cluster name!!')
     else:
         raise ValueError('Invalid cluster name!!')
 
