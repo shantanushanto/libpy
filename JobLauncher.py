@@ -148,7 +148,7 @@ class Slurm:
 
     # get job that is in the sbatch running or pending
     @staticmethod
-    def get_jobs_in_sbatch(by_status=None):
+    def get_jobs_in_sbatch(by_status=None) -> List:
         # by_status: PENDING, RUNNING
 
         # return job in a list. job is dict of {id, status, name}
@@ -925,6 +925,11 @@ class AtlasLauncher(SlurmLauncher):
         else:
             resource = itertools.cycle(resource)
 
+        # figuring out how many jobs can we submit in the cluster
+        jobs_in_cluster = Slurm.get_jobs_in_sbatch()  # get jobs running/pending in the cluster
+        max_jobs_to_submit = 50
+        no_jobs_can_submit = min(0, max_jobs_to_submit-len(jobs_in_cluster))
+
         # process jobs to submit
         jobs_to_submit = []
         for task, partition_name in zip(tasks, resource):
@@ -942,8 +947,11 @@ class AtlasLauncher(SlurmLauncher):
             # jobs to submit
             jobs_to_submit.append((task, job_script))
 
-        # submit jobs
-        self.submit_all_jobs(jobs=jobs_to_submit, verbose=1)
+        if no_jobs_can_submit > 0:
+            # submit jobs
+            self.submit_all_jobs(jobs=jobs_to_submit[:no_jobs_can_submit], verbose=1)
+        else:
+            pyutils.errprint(f'Cluster already has max {max_jobs_to_submit} number of jobs', time_stamp=False)
 
 
 class TerraGPULauncher(PAlabLauncher):
