@@ -917,7 +917,9 @@ class AtlasLauncher(SlurmLauncher):
         launch_var = self.pre_launch()
         tasks, resource = launch_var['tasks'], launch_var['free_resource']
 
-        use_all = True
+        use_all = False
+        resource = ['enrgy']
+
         if use_all:
             resource = resource + ['all' for _ in range(len(tasks) - len(resource))]
         else:
