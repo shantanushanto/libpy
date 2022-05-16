@@ -47,13 +47,25 @@ class DictPanda:
             self._rows.append(row.to_dict())
         return self
 
-    def get_as_dataframe(self):
-        df = pd.DataFrame()
-        row: dict
+    def get_as_dataframe(self) -> pd.DataFrame:
+
+        # find all keys. cause each row may not contain all the column value
+        avail_keys = set()
         for row in self._rows:
-            df_row = pd.DataFrame(data=[row.values()], columns=row.keys())
-            df = pd.concat([df, df_row], sort=False)
-        df = df.reset_index(drop=True)
+            avail_keys = set(row.keys()).union(avail_keys)
+
+        table = []
+
+        for row_dict in self._rows:
+            # if any row does not have value for a specific column put None
+            row = []
+            for k, v in row_dict.items():
+                row.append(v if k in avail_keys else None)
+
+            # create table for all column value.
+            table.append(row)
+
+        df = pd.DataFrame(table, columns=list(avail_keys))
         return df
 
 
