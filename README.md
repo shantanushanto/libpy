@@ -1,4 +1,5 @@
 # How to use tamulauncher with other job submission manager
+#### This doc is little old. Codes are updated ever since. Please see the code for details but the idea is kept same.
 ### Introduction
 I had a project that has tons of small programs to run for around 30 minutes each with different
 arguments. At first I used TAMU Terra cluster and submitted all the jobs one by one with sbatch.
@@ -13,8 +14,6 @@ job management cluster.
 * Tamulauncher: TAMU's special launcher to run lots of small program at once.
 
 ### How to use
-- <b>Update <code>from libpy import pyutils</code> -> <code>import pyutils</code> in JobLauncher.py</b>
-- See some <code>TODO tag comment</code> in <code>JobLauncher.py</code> that you may need to remove. I added them for my purpose. Please see and remove them otherwise your script may not run.
 * Run a python program: This example will run example_program.py with different arguments with slurm job submission. 
 Use <code>tamulauncher</code> in --cluster argument to use Tamulauncher<br>
 <code> python example_batch.py --which example_program_py --cluster palab </code>

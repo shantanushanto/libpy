@@ -148,7 +148,7 @@ class Slurm:
 
     # get job that is in the sbatch running or pending
     @staticmethod
-    def get_jobs_in_sbatch(by_status=None):
+    def get_jobs_in_sbatch(by_status=None) -> List:
         # by_status: PENDING, RUNNING
 
         # return job in a list. job is dict of {id, status, name}
@@ -551,7 +551,7 @@ def tasks_launch_action_router(all_tasks, no_resource: int):
 
 
 # given kwargs dict generate job name and arguments for cmd
-def gen_job_name(kwargs, data_dir, batch_path_suffix=None):
+def gen_job_name(kwargs, data_dir, batch_path_suffix=None, add_batch_path=True):
     # data_dir: dir to save data. data_dir as added with batch_path
     # batch_path: if given will be that one. Else default one
 
@@ -573,12 +573,18 @@ def gen_job_name(kwargs, data_dir, batch_path_suffix=None):
             kv = f'{kname}-{v}'
             job_name += kv if job_name == '' else f'_{kv}'  # (key, val) is separated by underscore
         # generate cmd arguments
-        cargs = f'{cargs} --{k} {v}'
+        from libpy.Experiment import ExpParam
+        # discard if param name is invalid. e.g. want to add in file name but not in param list
+        if not ExpParam.invalid_param(name=k):
+            cargs = f'{cargs} --{k} {v}'
 
     # adding batch_path from job name if no batch_path is given
     batch_path = job_name if batch_path_suffix is None else batch_path_suffix
     batch_path = os.path.join(data_dir, batch_path)  # construct full path
-    cargs = f'{cargs} --batch_path {batch_path}'
+
+    if add_batch_path:
+        cargs = f'{cargs} --batch_path {batch_path}'
+
     if len(job_name) > 210:
         raise ValueError(f'File name may exceed 255 characters. Checking done from create_task. e.g. {job_name}')
 
@@ -735,7 +741,6 @@ class TamuLauncher(JobLauncher):
             print(f'sbatch {job_file}')
             if not self.submission_check:
                 success = Slurm.sbatch(file=job_file, prod=True, verbose=True)
-                return success
 
 
 class SlurmLauncher(JobLauncher):
@@ -912,11 +917,18 @@ class AtlasLauncher(SlurmLauncher):
         launch_var = self.pre_launch()
         tasks, resource = launch_var['tasks'], launch_var['free_resource']
 
-        use_all = True
+        use_all = False
+        resource = ['enrgy']
+
         if use_all:
             resource = resource + ['all' for _ in range(len(tasks) - len(resource))]
         else:
             resource = itertools.cycle(resource)
+
+        # figuring out how many jobs can we submit in the cluster
+        jobs_in_cluster = Slurm.get_jobs_in_sbatch()  # get jobs running/pending in the cluster
+        max_jobs_to_submit = 50
+        no_jobs_can_submit = max(0, max_jobs_to_submit-len(jobs_in_cluster))
 
         # process jobs to submit
         jobs_to_submit = []
@@ -935,8 +947,11 @@ class AtlasLauncher(SlurmLauncher):
             # jobs to submit
             jobs_to_submit.append((task, job_script))
 
-        # submit jobs
-        self.submit_all_jobs(jobs=jobs_to_submit, verbose=1)
+        if no_jobs_can_submit > 0:
+            # submit jobs
+            self.submit_all_jobs(jobs=jobs_to_submit[:no_jobs_can_submit], verbose=1)
+        else:
+            pyutils.errprint(f'Cluster already has max {max_jobs_to_submit} number of jobs', time_stamp=False)
 
 
 class TerraGPULauncher(PAlabLauncher):
@@ -969,10 +984,51 @@ class TerraGPULauncher(PAlabLauncher):
         return header
 
 
+class TerraCPULauncher(PAlabLauncher):
+
+    def __init__(self, task_gen, acc_id=12281892943, tasks_each_launch=1, no_cpu_per_task=1, time='3:30:00',
+                 mem='5000M', sbatch_extra_cmd='', no_exclude_node=0, submission_check=False):
+        '''
+        Make sure all the directories are already exist
+        task_gen is a function that return list of Task
+        no_exclude_node: how many node not to use. If you doesn't want any node to exclude pass 0 here. Otherwise change node name to match your cluster.
+        '''
+        self.acc_id = acc_id
+        super().__init__(task_gen, tasks_each_launch, no_cpu_per_task, time, mem, sbatch_extra_cmd=sbatch_extra_cmd,
+                         no_exclude_node=no_exclude_node, submission_check=submission_check)
+
+    def _cluster_specific_header(self, node_name, no_exclude_node):
+        # header to use gpu
+
+        header = (
+            f'#SBATCH --export=NONE\n'
+            f'#SBATCH --get-user-env=L\n'
+            f'#SBATCH --account={self.acc_id}\n'
+            f'#SBATCH --time={self.time}\n'
+            f'#SBATCH --ntasks={self.no_tasks}\n'
+            f'#SBATCH --mem={self.mem}\n'
+        )
+        return header
+
+
 # cluster launch job
 def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', no_exlude_node=1,
                submission_check=False, sbatch_extra_cmd='source activate rl\n',
                acc_id=122818929441, tasks_each_launch=14):
+    '''
+
+    :param cluster: name of the cluster
+    :param callback_batch_gen: a callback function that return a list of Task object
+    :param job_name: any string to show the job name in cluster
+    :param no_cpu: how many cpu to use per task
+    :param time:
+    :param no_exlude_node: for palab cluster exlude some node to not submit jobs
+    :param submission_check: if submission_check is false it will only create the sbatch file but will not submit them automatically
+    :param sbatch_extra_cmd: any extra command need to be done before executing original program
+    :param acc_id: acc_id is mainly for tamu hprc
+    :param tasks_each_launch: it is required for tamulauncher. how many tasks will be launched each time
+    :return:
+    '''
     # choose cluster
     if cluster == 'palab':
         server = PAlabLauncher(callback_batch_gen, sbatch_extra_cmd=sbatch_extra_cmd, no_cpu_per_task=no_cpu,
@@ -987,11 +1043,20 @@ def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', 
         # don't use tasks_each_launch in tamulauncher. It has a bug that doesn't follow tasks-per-node hence request large SUs
         server = TamuLauncher(callback_batch_gen, job_name=job_name, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd,
                               time=time, submission_check=submission_check, tasks_each_launch=tasks_each_launch)
-    elif cluster == 'terragpu':
+    elif cluster in ['terragpu', 'terracpu']:
         import router  # as router may not be present in every project importing here
         sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
-        server = TerraGPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time,
-                                  submission_check=submission_check)
+
+        if cluster == 'terracpu':
+            sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModuleCPU.sh")}'
+            server = TerraCPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time,
+                                      submission_check=submission_check)
+        elif cluster == 'terragpu':
+            sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
+            server = TerraGPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time,
+                                      submission_check=submission_check)
+        else:
+            raise ValueError('Invalid cluster name!!')
     else:
         raise ValueError('Invalid cluster name!!')
 

@@ -48,7 +48,6 @@ class DictPanda:
         return self
 
     def get_as_dataframe(self) -> pd.DataFrame:
-
         # find all keys. cause each row may not contain all the column value
         avail_keys = set()
         for row in self._rows:
@@ -149,12 +148,13 @@ def replicate_rows_between_date(sub: pd.DataFrame, date_col):
     return sub
 
 
-def pd_set_display(max_col=True, max_row=True, col_wrap=False):
+def pd_set_display(max_col=True, max_row=True, col_wrap=False, max_col_width=None):
     """
 
     :param max_col:
     :param max_row:
     :param col_wrap: wrap the column while printing
+    :param max_col_width: set maximum column width. Use 100 for large string print
     :return:
     """
     if max_col:
@@ -165,14 +165,18 @@ def pd_set_display(max_col=True, max_row=True, col_wrap=False):
     if not col_wrap:
         pd.set_option('display.expand_frame_repr', False)
 
+    if max_col_width:
+        pd.options.display.max_colwidth = max_col_width
 
-def print_all(df):
+
+def print_all(df, max_col_width=None):
     """
     Print all rows and columns
     :param df:
+    :param max_col_width: maximum col width to print larger string
     :return:
     """
-    pd_set_display()
+    pd_set_display(max_col_width=max_col_width)
     print(df.round(2))
 
 
@@ -230,6 +234,9 @@ def header(line, sz=1):
     if sz == 1:
         eq = "".join(['=' for _ in range(len(line))])
         para = f'{eq}\n{line}\n{eq}'
+    elif sz == 2:
+        eq = "".join(['-' for _ in range(len(line))])
+        para = f'{line}\n{eq}'
     else:
         para = line
 

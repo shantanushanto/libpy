@@ -55,7 +55,7 @@ def json_merge_and_get_data(dir_path, merged_file='all.final', recreate=True, me
 
 # transfer file between clusters given full path in both side
 def scp(letters: list, dir_copy: bool = False, check_exist: bool = True, verbose: bool = False,
-        prod: bool = False) -> None:
+        prod: bool = False, basic_scp=False) -> None:
     # given a list transfer file between cluster
     # letters: list of [from[0], to[1]] list to transfer file.
     # recursive: for dir transfer
@@ -78,8 +78,10 @@ def scp(letters: list, dir_copy: bool = False, check_exist: bool = True, verbose
         to_path = letter[1]
 
         extra_cmd = '-r' if dir_copy else ''
-
-        cmd = f'sshpass -p $tamu_pss scp -q {extra_cmd} {from_path} {to_path}'
+        if basic_scp:
+            cmd = f'scp -q {extra_cmd} {from_path} {to_path}'
+        else:
+            cmd = f'sshpass -p $tamu_pss scp -q {extra_cmd} {from_path} {to_path}'
         if verbose:
             print(f'{cmd}')
 
