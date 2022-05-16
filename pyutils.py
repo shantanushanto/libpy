@@ -330,6 +330,28 @@ def read_pickle(path):
     return data
 
 
+def write_text(path, data):
+    with open(path, 'w') as file:
+        file.write(data)
+
+
+def read_text(path, as_multi_line=False):
+    '''
+    read text from a text file
+    :param path:
+    :param as_multi_line: get the text as lines in an array
+    :return:
+    '''
+    with open(path, 'r') as file:
+        if as_multi_line:
+            data = file.readlines()
+        else:
+            data = file.read()
+    return data
+
+
+
+
 def files_with_extension(dir, extension, fullpath=True):
     # given directory and extension get all files.
     files = []
@@ -360,7 +382,7 @@ def get_date_from_path(path):
 
 
 # get recent file by date. File has name pattern of prefix_date.extension
-def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1, date_anywhere=True):
+def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1, date_type='YMD', date_anywhere=True):
     """
     Get recent file by date. File has name pattern of prefix_date.extension
     :param dir:
@@ -368,9 +390,15 @@ def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1, date_
     :param extension:
     :param fullpath:
     :param N: if N > 1 return recent N dated files
+    :param date_type: [YMD, timestamp] current implementation only work if timestamp is at last
     :param date_anywhere: find date from file name dynamically
     :return:
     """
+
+    # current implementation only work if timestamp is at last
+    if date_type == 'timestamp':
+        date_anywhere = False
+
     # get all file with extension
     files = files_with_extension(dir=dir, extension=extension, fullpath=False)
     # filter out by matching prefix, assuming date is in last
