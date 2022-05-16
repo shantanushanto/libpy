@@ -53,18 +53,21 @@ class DictPanda:
         for row in self._rows:
             avail_keys = set(row.keys()).union(avail_keys)
 
+        avail_keys = list(avail_keys)
+
         table = []
 
         for row_dict in self._rows:
             # if any row does not have value for a specific column put None
             row = []
-            for k, v in row_dict.items():
-                row.append(v if k in avail_keys else None)
+
+            for key in avail_keys:
+                row.append(row_dict[key] if key in row_dict else None)
 
             # create table for all column value.
             table.append(row)
 
-        df = pd.DataFrame(table, columns=list(avail_keys))
+        df = pd.DataFrame(table, columns=avail_keys)
         return df
 
 
