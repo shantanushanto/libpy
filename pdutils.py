@@ -48,26 +48,7 @@ class DictPanda:
         return self
 
     def get_as_dataframe(self) -> pd.DataFrame:
-        # find all keys. cause each row may not contain all the column value
-        avail_keys = set()
-        for row in self._rows:
-            avail_keys = set(row.keys()).union(avail_keys)
-
-        avail_keys = list(avail_keys)
-
-        table = []
-
-        for row_dict in self._rows:
-            # if any row does not have value for a specific column put None
-            row = []
-
-            for key in avail_keys:
-                row.append(row_dict[key] if key in row_dict else None)
-
-            # create table for all column value.
-            table.append(row)
-
-        df = pd.DataFrame(table, columns=avail_keys)
+        df = pd.DataFrame(self._rows)
         return df
 
 
@@ -244,3 +225,11 @@ def header(line, sz=1):
         para = line
 
     print(para)
+
+
+# -------------------------------------
+#         Math related formula
+# -------------------------------------
+def zscore(col):
+    z = (col-np.mean(col)) / np.std(col)
+    return z
