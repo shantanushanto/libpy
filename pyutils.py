@@ -350,6 +350,9 @@ def read_text(path, as_multi_line=False):
     return data
 
 
+def get_files_with_extension(dir, extension, fullpath=True):
+    # new function with name udpate for a more intuitive method name
+    return files_with_extension(dir=dir, extension=extension, fullpath=fullpath)
 
 
 def files_with_extension(dir, extension, fullpath=True):
