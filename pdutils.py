@@ -162,6 +162,7 @@ def print_all(df, max_col_width=None):
     """
     pd_set_display(max_col_width=max_col_width)
     print(df.round(2))
+    print(list(df))
 
 
 def intersect(a, b):

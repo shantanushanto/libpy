@@ -129,6 +129,21 @@ def dir_backup(path_dir):
         helper_copy_dir(src=path_dir, dst=backup_path_dir)
 
 
+def dir_clear(path_dir, delete=False):
+    '''
+    :param path_dir:
+    :param delete: delete the directory too
+    :return:
+    '''
+    # clear a directory
+    for file in os.listdir(path_dir):
+        path = os.path.join(path_dir, file)
+        os.remove(path)
+
+    if delete:
+        os.rmdir(path_dir)
+
+
 class ActionRouterClass:
     """
     ================
@@ -350,9 +365,24 @@ def read_text(path, as_multi_line=False):
     return data
 
 
-def get_files_with_extension(dir, extension, fullpath=True):
-    # new function with name udpate for a more intuitive method name
-    return files_with_extension(dir=dir, extension=extension, fullpath=fullpath)
+def get_files_with_prefix_and_suffix(dir, prefix='', suffix='', fullpath=True):
+    # get files from a directory with certain prefix or suffix (extension)
+    paths = files_with_extension(dir=dir, extension=suffix, fullpath=False)
+
+    filtered = []
+    for path in paths:
+        if path.startswith(prefix):
+            filtered.append(path)
+
+    if fullpath:
+        # construct fullpath
+        paths = []
+        for p in filtered:
+            path = os.path.join(dir, p)
+            paths.append(path)
+        return paths
+    else:
+        return filtered
 
 
 def files_with_extension(dir, extension, fullpath=True):
