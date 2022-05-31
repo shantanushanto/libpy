@@ -64,6 +64,51 @@ def remove_duplicates(seq):
     return [x for x in seq if not (x in seen or seen_add(x))]
 
 
+def to_html(df):
+    pd.set_option('colheader_justify', 'center')  # FOR TABLE <th>
+
+    css_style = '''
+    <style>
+            /* includes alternating gray and white with on-hover color */
+            .mystyle {
+                font-size: 11pt; 
+                font-family: Arial;
+                border-collapse: collapse; 
+                border: 1px solid silver;
+            
+            }
+            
+            .mystyle td, th {
+                padding: 5px;
+            }
+            
+            .mystyle tr:nth-child(even) {
+                background: #E0E0E0;
+            }
+            
+            .mystyle tr:hover {
+                background: silver;
+                cursor: pointer;
+            }
+    </style>
+    '''
+
+    html_string = '''
+    <html>
+      <head><title>HTML Pandas Dataframe with CSS</title></head>
+        {css}
+      <body>
+        {table}
+      </body>
+    </html>.
+    '''
+
+    # OUTPUT AN HTML FILE
+    html = html_string.format(css=css_style, table=df.to_html(classes='mystyle'))
+    print(html, end='')
+    return html
+
+
 def col_arrange(col_orders, df) -> pd.DataFrame:
     """
     Arrange by col_orders and sort rest of them
@@ -153,7 +198,7 @@ def pd_set_display(max_col=True, max_row=True, col_wrap=False, max_col_width=Non
         pd.options.display.max_colwidth = max_col_width
 
 
-def print_all(df, max_col_width=None):
+def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, rounding=True):
     """
     Print all rows and columns
     :param df:
@@ -161,8 +206,18 @@ def print_all(df, max_col_width=None):
     :return:
     """
     pd_set_display(max_col_width=max_col_width)
-    print(df.round(2))
-    print(list(df))
+
+    if num_comma_sep:
+        pd.options.display.float_format = '{:,}'.format
+
+    if rounding:
+        print(df.round(2))
+    else:
+        print(df)
+
+    if meta_info:
+        print(list(df))
+        print(df.shape)
 
 
 def intersect(a, b):
