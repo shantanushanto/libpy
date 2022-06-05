@@ -198,11 +198,12 @@ def pd_set_display(max_col=True, max_row=True, col_wrap=False, max_col_width=Non
         pd.options.display.max_colwidth = max_col_width
 
 
-def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, rounding=True):
+def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, rounding=True, put_header=0):
     """
     Print all rows and columns
     :param df:
     :param max_col_width: maximum col width to print larger string
+    :param put_header: put header after every put_header row
     :return:
     """
     pd_set_display(max_col_width=max_col_width)
@@ -211,9 +212,13 @@ def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, roundi
         pd.options.display.float_format = '{:,}'.format
 
     if rounding:
-        print(df.round(2))
-    else:
+        df = df.round(2)
+
+    if put_header == 0:
         print(df)
+    else:
+        for i in range(0, len(df), put_header):
+            print(df.iloc[i: i+put_header])
 
     if meta_info:
         print(list(df))
@@ -289,3 +294,22 @@ def header(line, sz=1):
 def zscore(col):
     z = (col-np.mean(col)) / np.std(col)
     return z
+
+
+def pct_growth(col):
+    res = col.diff() / col.abs().shift()
+    return res
+
+
+def main():
+    df = pd.DataFrame([[1], [2], [-1], [0], [-3]], columns=['val'])
+    # df['val'] = pd.Series(np.array([1, 2, -1, 0, -3]))
+    print(df.dtypes)
+
+    df['%'] = pct_growth(df['val'])
+    df['% apply'] = pct_growth(df['val'])
+    print(df)
+
+
+if __name__ == '__main__':
+    main()
