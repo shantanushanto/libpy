@@ -198,12 +198,12 @@ def pd_set_display(max_col=True, max_row=True, col_wrap=False, max_col_width=Non
         pd.options.display.max_colwidth = max_col_width
 
 
-def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, rounding=True, put_header=0):
+def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, rounding=True, freeze_x=20, freeze_y=15):
     """
     Print all rows and columns
     :param df:
     :param max_col_width: maximum col width to print larger string
-    :param put_header: put header after every put_header row
+    :param freeze_x: put header after every freeze_x row
     :return:
     """
     pd_set_display(max_col_width=max_col_width)
@@ -214,11 +214,18 @@ def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, roundi
     if rounding:
         df = df.round(2)
 
-    if put_header == 0:
-        print(df)
-    else:
-        for i in range(0, len(df), put_header):
-            print(df.iloc[i: i+put_header])
+    for idx, j in enumerate(range(freeze_y, len(list(df)), freeze_y)):
+        name = df.index.name if df.index.name is not None else 'index'
+        df.insert(j+idx, name, df.index, allow_duplicates=True)  # +idx to increase the position 1 when inserting
+
+    for i in range(0, len(df), freeze_x):
+        print(df.iloc[i: i + freeze_x])
+
+    # if put_header == 0:
+    #     print(df)
+    # else:
+    #     for i in range(0, len(df), put_header):
+    #         print(df.iloc[i: i+put_header])
 
     if meta_info:
         print(list(df))
