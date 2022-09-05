@@ -1,4 +1,5 @@
 import sys
+import os
 
 import numpy as np
 import pandas as pd
@@ -198,7 +199,7 @@ def pd_set_display(max_col=True, max_row=True, col_wrap=False, max_col_width=Non
         pd.options.display.max_colwidth = max_col_width
 
 
-def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, rounding=True, freeze_x=20, freeze_y=15):
+def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, rounding=True, freeze_x=10000, freeze_y=30, title=''):
     """
     Print all rows and columns
     :param df:
@@ -218,14 +219,11 @@ def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, roundi
         name = df.index.name if df.index.name is not None else 'index'
         df.insert(j+idx, name, df.index, allow_duplicates=True)  # +idx to increase the position 1 when inserting
 
+    if title != '':
+        header(title)
+
     for i in range(0, len(df), freeze_x):
         print(df.iloc[i: i + freeze_x])
-
-    # if put_header == 0:
-    #     print(df)
-    # else:
-    #     for i in range(0, len(df), put_header):
-    #         print(df.iloc[i: i+put_header])
 
     if meta_info:
         print(list(df))
@@ -294,7 +292,127 @@ def header(line, sz=1):
 
     print(para)
 
+# -------------------------------------
+#         Google sheet upload
+# -------------------------------------
 
+
+def upload_to_gsheet(df, sheet_id, sheet_name, verbose=True, stripe=True, fit_column=True):
+    import gspread
+
+    try:
+        gc = gspread.oauth()
+        sh = gc.open_by_key(sheet_id)
+    except:
+        path_home = os.path.expanduser('~')
+        path_file = '.config/gspread/authorized_user.json'
+        path = os.path.join(path_home, path_file)
+
+        # if token expired delete the auth token and try again
+        ans = input(f'token expired. want to delete and try again? {path} [y/n] ')
+        if ans != 'y':
+            exit(0)
+
+        os.remove(path)
+        upload_to_gsheet(df=df, sheet_id=sheet_id, sheet_name=sheet_name, verbose=verbose)
+        return
+
+
+    try:  # create new sheet if not exist
+        ws = sh.worksheet(sheet_name)
+        # sh.del_worksheet(ws)
+    except:
+        ws = sh.add_worksheet(title=f"{sheet_name}", rows="100", cols="26")
+
+    # clearing the worksheet
+    ws.clear()
+
+    df = df.round(2)
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.fillna('')
+    # values = df.round(2).fillna('').values.tolist()
+    values = df.values.tolist()
+
+    title = list(df)
+    values = [title] + values
+
+    ws.update('A1', values)
+
+    ws.freeze(rows=1, cols=1)
+
+    # formatting rules
+    rules = {"requests": []}
+
+    sheetID = ws.id
+
+    X, Y = df.shape[0]+1, df.shape[1]
+
+    # rule alternate color
+    rule_ac = {
+        "addConditionalFormatRule": {
+            "rule": {
+                "ranges": [
+                    {
+                        "sheetId": 0,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": 2,
+                        "startRowIndex": 1,
+                        "endRowIndex": 10
+                    }
+                ],
+                "booleanRule": {
+                    "condition": {
+                        "type": "CUSTOM_FORMULA",
+                        "values": [
+                            {
+                                "userEnteredValue": "=ISEVEN(ROW())"
+                            }
+                        ]
+                    },
+                    "format": {
+                        "backgroundColor": {
+                            "red": 207 / 255,
+                            "green": 211 / 255,
+                            "blue": 253 / 255,
+                        }
+                    }
+                }
+            },
+            "index": 0
+        }
+    }
+
+    rule_ac['addConditionalFormatRule']['rule']['ranges'][0]['sheetId'] = sheetID
+    rule_ac['addConditionalFormatRule']['rule']['ranges'][0]['endColumnIndex'] = Y
+    rule_ac['addConditionalFormatRule']['rule']['ranges'][0]['endRowIndex'] = X
+
+    # column auto fit rule
+    rule_col_autofit = {
+        "autoResizeDimensions": {
+            "dimensions": {
+                "sheetId": 0,
+                "dimension": "COLUMNS",
+                "startIndex": 0,
+                "endIndex": 3
+            }
+        }
+    }
+
+    rule_col_autofit['autoResizeDimensions']['dimensions']['sheetId'] = sheetID
+    rule_col_autofit['autoResizeDimensions']['dimensions']['endIndex'] = Y
+
+    if stripe:
+        rules['requests'].append(rule_ac)
+
+    if fit_column:
+        rules['requests'].append(rule_col_autofit)
+
+    if 'requests' in rules:
+        ws.spreadsheet.batch_update(rules)
+
+    print(f'Uploaded to google sheet: {sheet_name} {sheet_id}', file=sys.stderr)
+
+    return
 # -------------------------------------
 #         Math related formula
 # -------------------------------------
@@ -311,11 +429,8 @@ def pct_growth(col):
 def main():
     df = pd.DataFrame([[1], [2], [-1], [0], [-3]], columns=['val'])
     # df['val'] = pd.Series(np.array([1, 2, -1, 0, -3]))
-    print(df.dtypes)
-
-    df['%'] = pct_growth(df['val'])
-    df['% apply'] = pct_growth(df['val'])
-    print(df)
+    import router
+    upload_to_gsheet(df, sheet_id=router.gsheet_id, sheet_name='test')
 
 
 if __name__ == '__main__':
