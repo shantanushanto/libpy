@@ -1052,7 +1052,7 @@ def launch_job(cluster, callback_batch_gen, job_name, no_cpu=1, time='3:00:00', 
             server = TerraCPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time,
                                       submission_check=submission_check)
         elif cluster == 'terragpu':
-            sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
+            # sbatch_extra_cmd = f'source {os.path.join(router.project_root, "TerraModule.sh")}'
             server = TerraGPULauncher(callback_batch_gen, acc_id=acc_id, sbatch_extra_cmd=sbatch_extra_cmd, time=time,
                                       submission_check=submission_check)
         else:
