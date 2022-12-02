@@ -622,5 +622,47 @@ def set_seed(seed):
         pass
 
 
+class DiskList(list):
+
+    def __init__(self, name):
+        '''
+
+        :param name: can be single name or full path. if single name is passed data is stored in tmp folder
+        '''
+        # path is explicitly passed
+        if '/' in name:
+            self.path = f'{name}.pkl'
+        else: # store default temp folder
+            path_dir = mkdir_p(dir='.disklist')
+            self.path = os.path.join(path_dir, f'{name}.pkl')
+
+        data_array = self._load()
+        list.__init__(self, data_array)
+
+    def __getitem__(self, index):
+        # retval = super(IOs, self).__getitem__(index)
+        retval = super().__getitem__(index)
+        if isinstance(index, slice):
+            retval = type(self)(retval)
+        return retval
+
+    def __getslice__(self, i, j):
+        # Python 2 built-in types only
+        return self.__getitem__(slice(i, j))
+
+    def _load(self):
+        if not os.path.exists(self.path):
+            return []
+        else:
+            return pyutils.read_pickle(self.path)
+
+    def append(self, object) -> 'DiskList':
+        super().append(object)
+        return self
+
+    def store(self):
+        pyutils.write_pickle(path=self.path, data=self)
+
+
 if __name__ == '__main__':
     mkdir_p('.tmp', verbose=True, backup_existing=True, if_contains='.py')
