@@ -622,46 +622,68 @@ def set_seed(seed):
         pass
 
 
-class DiskList(list):
+# ======================================================
+#                DiskStore implementation
+# ======================================================
 
-    def __init__(self, name):
-        '''
+import types
 
-        :param name: can be single name or full path. if single name is passed data is stored in tmp folder
-        '''
-        # path is explicitly passed
-        if '/' in name:
-            self.path = f'{name}.pkl'
-        else: # store default temp folder
-            path_dir = mkdir_p(dir='.disklist')
-            self.path = os.path.join(path_dir, f'{name}.pkl')
 
-        data_array = self._load()
-        list.__init__(self, data_array)
+class __DiskList__(list):
 
-    def __getitem__(self, index):
-        # retval = super(IOs, self).__getitem__(index)
-        retval = super().__getitem__(index)
-        if isinstance(index, slice):
-            retval = type(self)(retval)
-        return retval
-
-    def __getslice__(self, i, j):
-        # Python 2 built-in types only
-        return self.__getitem__(slice(i, j))
-
-    def _load(self):
-        if not os.path.exists(self.path):
-            return []
-        else:
-            return pyutils.read_pickle(self.path)
-
-    def append(self, object) -> 'DiskList':
+    def append(self, object):
         super().append(object)
         return self
 
-    def store(self):
-        pyutils.write_pickle(path=self.path, data=self)
+
+class __DiskSet__(set):
+
+    def add(self, object):
+        super().add(object)
+        return self
+
+
+def __store_in_disk(self):
+    with open(self.__disk_path__, 'wb') as file:
+        dill.dump(self, file)
+
+
+def DiskStore(name, obj):
+
+    # object disk path
+    if '/' in name:
+        disk_path = f'{name}.pkl'
+    else:  # store default temp folder
+        path_dir = mkdir_p(dir='.diskobj')
+        disk_path = os.path.join(path_dir, f'{name}.pkl')
+
+    if isinstance(obj, list):
+        obj = __DiskList__()
+    elif isinstance(obj, set):
+        obj = __DiskSet__()
+
+    # if obj already exist return from disk
+    if os.path.exists(disk_path):
+        with open(disk_path, 'rb') as file:
+            obj_disk = dill.load(file)
+
+            if type(obj) != type(obj_disk):
+                raise ValueError(f'Type mismatched for stored {type(obj_disk)} and passed object {type(obj)}')
+
+            return obj_disk
+
+    setattr(obj, '__disk_path__', disk_path)
+
+    if 'store' in dir(obj):
+        raise ValueError('store method already exist in the object')
+
+    obj.store = types.MethodType(__store_in_disk, obj)
+    return obj
+
+
+# ======================================================
+#                End of DiskStore implementation
+# ======================================================
 
 
 if __name__ == '__main__':
