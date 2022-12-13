@@ -622,6 +622,11 @@ def set_seed(seed):
         pass
 
 
+def verbose_sleep(sec, prefix=''):
+    nxt_time = (datetime.datetime.now() + datetime.timedelta(seconds=sec)).replace(microsecond=0).time()
+    print(f'{prefix}::Sleeping ({sec}s) starting at {nxt_time}', file=sys.stderr)
+    time.sleep(sec)
+
 # ======================================================
 #                DiskStore implementation
 # ======================================================
@@ -643,43 +648,59 @@ class __DiskSet__(set):
         return self
 
 
-def __store_in_disk(self):
-    with open(self.__disk_path__, 'wb') as file:
-        dill.dump(self, file)
+class DiskStore:
 
+    def __init__(self, name, obj, dir_store):
+        self.name = name
+        self.obj = obj
+        self.dir_store = dir_store
 
-def DiskStore(name, obj):
+    def _add_custom_method(self, obj):
 
-    # object disk path
-    if '/' in name:
-        disk_path = f'{name}.pkl'
-    else:  # store default temp folder
-        path_dir = mkdir_p(dir='.diskobj')
+        def __store_in_disk(self):
+            with open(self.__disk_path__, 'wb') as file:
+                dill.dump(self, file)
+
+        def __set_disk_path(self, path):
+            self.__disk_path__ = path
+
+        if 'store' not in dir(obj):
+            obj.store = types.MethodType(__store_in_disk, obj)
+
+        if '__set_disk_path' not in dir(obj):
+            obj.__set_disk_path = types.MethodType(__set_disk_path, obj)
+
+    def get(self):
+        name = self.name
+        dir_store = self.dir_store
+        obj = self.obj
+
+        # object disk path
+        path_dir = mkdir_p(dir=dir_store)
         disk_path = os.path.join(path_dir, f'{name}.pkl')
 
-    if isinstance(obj, list):
-        obj = __DiskList__()
-    elif isinstance(obj, set):
-        obj = __DiskSet__()
+        if isinstance(obj, list):
+            obj = __DiskList__()
+        elif isinstance(obj, set):
+            obj = __DiskSet__()
 
-    # if obj already exist return from disk
-    if os.path.exists(disk_path):
-        with open(disk_path, 'rb') as file:
-            obj_disk = dill.load(file)
+        # if obj already exist return from disk
+        if os.path.exists(disk_path):
+            with open(disk_path, 'rb') as file:
+                obj_disk = dill.load(file)
 
-            if type(obj) != type(obj_disk):
-                raise ValueError(f'Type mismatched for stored {type(obj_disk)} and passed object {type(obj)}')
+                if type(obj) != type(obj_disk):
+                    raise ValueError(f'Type mismatched for stored {type(obj_disk)} and passed object {type(obj)}')
 
-            return obj_disk
+                self._add_custom_method(obj_disk)
 
-    setattr(obj, '__disk_path__', disk_path)
+                return obj_disk
 
-    if 'store' in dir(obj):
-        raise ValueError('store method already exist in the object')
+        setattr(obj, '__disk_path__', disk_path)
 
-    obj.store = types.MethodType(__store_in_disk, obj)
-    return obj
+        self._add_custom_method(obj)
 
+        return obj
 
 # ======================================================
 #                End of DiskStore implementation
