@@ -49,6 +49,9 @@ class DictPanda:
         return self
 
     def get_as_dataframe(self) -> pd.DataFrame:
+        if self._row:
+            print(f'Last row is not done. done_row?', file=sys.stderr)
+
         df = pd.DataFrame(self._rows)
         return df
 
@@ -110,11 +113,12 @@ def to_html(df):
     return html
 
 
-def col_arrange(col_orders, df) -> pd.DataFrame:
+def col_arrange(col_orders, df, others_sorted=False) -> pd.DataFrame:
     """
     Arrange by col_orders and sort rest of them
-    :param col_orders: add prefix_ to filter out multiple columns with some prefix. e.g. prefix_z
+    :param col_orders: optional (ignore): add prefix_ to filter out multiple columns with some prefix. e.g. prefix_z
     :param df:
+    :param others_sorted: if sort other columns name
     :return:
     """
 
@@ -137,7 +141,10 @@ def col_arrange(col_orders, df) -> pd.DataFrame:
                 new_col_order += [col]
 
     new_col_order = remove_duplicates(new_col_order)
-    new_col_orders = new_col_order + sorted(list(set(list(df)) - set(new_col_order)))
+    others_col = list(set(list(df)) - set(new_col_order))
+    if others_sorted:
+        others_col = list(sorted(others_col))
+    new_col_orders = new_col_order + others_col
     return df[new_col_orders]
 
 
