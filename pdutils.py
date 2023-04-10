@@ -113,6 +113,30 @@ def to_html(df):
     return html
 
 
+def col_put_after(df, col_move, col_after):
+    '''
+    put a column after another column
+    :param col_move: column to move
+    :param col_after: if after is None, col will be put after head
+    :return:
+    '''
+    cols = list(df)
+    # filter col_move column
+    cols = [col for col in cols if col != col_move]
+
+    col_arrange = []
+
+    if col_after is None:
+        col_arrange = [col_move] + cols
+    else:
+        for col in cols:
+            col_arrange.append(col)
+            if col == col_after:
+                col_arrange.append(col_move)
+
+    df = df[col_arrange]
+    return df
+
 def col_arrange(col_orders, df, others_sorted=False) -> pd.DataFrame:
     """
     Arrange by col_orders and sort rest of them
@@ -141,7 +165,12 @@ def col_arrange(col_orders, df, others_sorted=False) -> pd.DataFrame:
                 new_col_order += [col]
 
     new_col_order = remove_duplicates(new_col_order)
-    others_col = list(set(list(df)) - set(new_col_order))
+    others_col = []  # list(set(list(df)) - set(new_col_order))
+
+    for c in list(df):
+        if c not in new_col_order:
+            others_col.append(c)
+
     if others_sorted:
         others_col = list(sorted(others_col))
     new_col_orders = new_col_order + others_col
@@ -206,7 +235,7 @@ def pd_set_display(max_col=True, max_row=True, col_wrap=False, max_col_width=Non
         pd.options.display.max_colwidth = max_col_width
 
 
-def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, rounding=True, freeze_x=10000, freeze_y=30, title=''):
+def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, rounding=2, freeze_x=10000, freeze_y=30, title=''):
     """
     Print all rows and columns
     :param df:
@@ -219,8 +248,8 @@ def print_all(df, max_col_width=None, num_comma_sep=True, meta_info=True, roundi
     if num_comma_sep:
         pd.options.display.float_format = '{:,}'.format
 
-    if rounding:
-        df = df.round(2)
+    if type(rounding) is int:
+        df = df.round(rounding)
 
     for idx, j in enumerate(range(freeze_y, len(list(df)), freeze_y)):
         name = df.index.name if df.index.name is not None else 'index'
