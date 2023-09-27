@@ -10,6 +10,7 @@ import re
 import datetime
 import uuid
 from functools import wraps
+import random
 
 from libpy import commonutils
 
@@ -460,6 +461,38 @@ def get_last_dated_file(dir, prefix, extension='.csv', fullpath=True, N=1, date_
         return None
 
 
+def get_file_path_offset_with_days(offset_days, dir, file_prefix='', file_suffix='.csv', time_type='date'):
+    '''
+
+    :param offset_days:
+    :param dir:
+    :param file_prefix:
+    :param time_type: date, timestamp_micro,
+    :return:
+    '''
+    files = list(sorted(os.listdir(dir)))
+    files = [file for file in files if file.startswith(file_prefix) and file.endswith(file_suffix)]
+
+    offset_datetime = datetime.datetime.now() - datetime.timedelta(days=offset_days)
+
+    for file in reversed(files):
+        file_timestamp = file.split('.')[0].split('_')[-1]
+
+        if time_type == 'timestamp_micro':
+            file_timestamp = int(file_timestamp)
+            then_datetime = datetime.datetime.fromtimestamp(file_timestamp / 1000)  # convert to milliseconds
+        elif time_type == 'date':
+            then_datetime = datetime.datetime.strptime(file_timestamp, '%Y-%m-%d')
+        else:
+            raise ValueError('Invalid time_type')
+
+        if then_datetime < offset_datetime:
+            path = os.path.join(dir, file)
+            return path
+
+    return None
+
+
 def rename_files_with_extension(dir, from_ext, to_ext, verbose=True):
     # from_ext: Pass extension name with . if necessary.
     # to_ext: Only extension name. No dot included. (.) is added so no need to pass .
@@ -622,7 +655,18 @@ def set_seed(seed):
         pass
 
 
-def verbose_sleep(sec, prefix=''):
+def verbose_sleep(sec, prefix='', randomness=0.3):
+    '''
+
+    :param sec:
+    :param prefix:
+    :param randomness: add percentage of randomness to sleep sec
+    :return:
+    '''
+
+    if randomness > 0:
+        sec = random.randint(max(0, int(sec * (1-randomness))), sec)
+
     nxt_time = (datetime.datetime.now() + datetime.timedelta(seconds=sec)).replace(microsecond=0).time()
     print(f'{prefix}::Sleeping ({sec}s) starting at {nxt_time}', file=sys.stderr)
     time.sleep(sec)
