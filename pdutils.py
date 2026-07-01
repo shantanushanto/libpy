@@ -374,7 +374,7 @@ class Gsheet:
         df = pd.DataFrame(data=data, columns=header)
         return df
 
-    def upload(self, df, sheet_name, verbose=True, stripe=True, fit_column=True):
+    def upload(self, df, sheet_name, verbose=True, stripe=False, fit_column=True):
         sheet_id = self.sheet_id
 
         sh = self.connect()
@@ -390,6 +390,10 @@ class Gsheet:
 
         df = df.round(2)
         df = df.replace([np.inf, -np.inf], np.nan)
+
+        for col in df.select_dtypes(include='category').columns:
+            df[col] = df[col].astype(str)
+
         df = df.fillna('')
         # values = df.round(2).fillna('').values.tolist()
         values = df.values.tolist()
@@ -407,7 +411,8 @@ class Gsheet:
         sheetID = ws.id
 
         X, Y = df.shape[0] + 1, df.shape[1]
-
+        
+        
         # rule alternate color
         rule_ac = {
             "addConditionalFormatRule": {
@@ -442,6 +447,7 @@ class Gsheet:
                 "index": 0
             }
         }
+        
 
         rule_ac['addConditionalFormatRule']['rule']['ranges'][0]['sheetId'] = sheetID
         rule_ac['addConditionalFormatRule']['rule']['ranges'][0]['endColumnIndex'] = Y
